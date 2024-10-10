@@ -1,71 +1,103 @@
+# data_loader.py
+
+import pandas as pd
+import numpy as np
+from scipy.sparse import csr_matrix, load_npz
+import os
+import json
 import random
-from collections import defaultdict
 
 class DataLoader:
-    def __init__(self, num_users=5, num_items=50, num_segments=5):
-        self.num_users = num_users
-        self.num_items = num_items
-        self.num_segments = num_segments
-        self.users = []
-        self.items = []
-        self.item_properties = {}
-        self.segmentations = {}
-        self.item_scores = defaultdict(dict)
-        self.I_cand = {}
-        self.load_data()
+    def __init__(self, rating_matrix_dir):
+        self.rating_matrix_dir = rating_matrix_dir
+        self.users = None
+        self.items = None
+        self.interactions = None
+        self.user_id_mapping = {}
+        self.item_id_mapping = {}
+        self.train_users = None
+        self.test_users = None
+        self.train_rating_matrix = None
+        self.test_interactions = None  # For candidate generation and evaluation
 
-    def load_data(self):
-        self.generate_users()
-        self.generate_items()
-        self.extract_segmentations()
-        self.generate_scores()
-        self.generate_candidate_items()
+    def load_data(self, dataset_name, train_ratio=0.8, random_state=None):
+        print(f"[DataLoader] Loading data for dataset '{dataset_name}'...")
 
-    def generate_users(self):
-        self.users = [f'u_{i+1}' for i in range(self.num_users)]
+        rating_matrix_file = os.path.join(self.rating_matrix_dir, f"{dataset_name}_rating_matrix.npz")
+        mappings_file = os.path.join(self.rating_matrix_dir, f"{dataset_name}_id_mappings.json")
+        users_file = os.path.join(self.rating_matrix_dir, f"{dataset_name}_users.csv")
+        items_file = os.path.join(self.rating_matrix_dir, f"{dataset_name}_items.csv")
+        interactions_file = os.path.join(self.rating_matrix_dir, f"{dataset_name}_interactions.csv")
 
-    def generate_items(self):
-        self.items = [f'i_{i+1}' for i in range(self.num_items)]
-        # Assign properties to items
-        for item in self.items:
-            props = {
-                'title': f'Title of {item}',
-                'genres': random.sample(range(1, self.num_segments+1), random.randint(1, 2)),
-                'paid': random.choice([True, False])
-            }
-            self.item_properties[item] = props
+        # Load rating matrix
+        rating_matrix = load_npz(rating_matrix_file)
 
-    def extract_segmentations(self):
-        # Segmentation 1: Genres
-        genres_segmentation = defaultdict(list)
-        for item, props in self.item_properties.items():
-            for genre in props['genres']:
-                genres_segmentation[f'Genre_{genre}'].append(item)
-        # Segmentation 2: Paid/Free
-        paid_segmentation = {
-            'Paid': [item for item, props in self.item_properties.items() if props['paid']],
-            'Free': [item for item, props in self.item_properties.items() if not props['paid']]
-        }
-        self.segmentations = {
-            'Genres': genres_segmentation,
-            'Paid/Free': paid_segmentation
-        }
+        # Load ID mappings
+        with open(mappings_file, 'r') as f:
+            id_mappings = json.load(f)
+        self.user_id_mapping = id_mappings['user_id_mapping']
+        self.item_id_mapping = id_mappings['item_id_mapping']
 
-    def generate_scores(self):
-        # For simplicity, generate random scores
-        for user in self.users:
-            for item in self.items:
-                self.item_scores[user][item] = random.uniform(0, 1)
+        # Load users, items, and interactions
+        self.users = pd.read_csv(users_file)
+        self.items = pd.read_csv(items_file)
+        self.interactions = pd.read_csv(interactions_file)
 
-    def generate_candidate_items(self, top_k=20):
-        # For each user, select top_k items based on scores
-        for user in self.users:
-            scores = self.item_scores[user]
-            sorted_items = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-            self.I_cand[user] = sorted_items[:top_k]
+        # Split users into training and testing sets
+        self._split_users(train_ratio, random_state)
 
-    def get_data_for_user(self, user):
-        return {
-            'candidate_items': self.I_cand[user],
-            'segmentations': self.segmentations
-        }
+        # Create training rating matrix
+        self.train_rating_matrix = self._create_train_rating_matrix(rating_matrix)
+
+        # Prepare testing interactions for candidate generation and evaluation
+        self.test_interactions = self._get_test_interactions()
+
+        print(f"[DataLoader] Data loading and splitting complete.")
+
+        return self.train_rating_matrix, self.test_interactions, self.user_id_mapping, self.item_id_mapping
+
+    def _split_users(self, train_ratio, random_state):
+        print("[DataLoader] Splitting users into training and testing sets...")
+
+        user_ids = list(self.user_id_mapping.keys())
+        if random_state is not None:
+            random.seed(random_state)
+        random.shuffle(user_ids)
+
+        split_index = int(len(user_ids) * train_ratio)
+        self.train_users = set(user_ids[:split_index])
+        self.test_users = set(user_ids[split_index:])
+
+        print(f"[DataLoader] Number of training users: {len(self.train_users)}")
+        print(f"[DataLoader] Number of testing users: {len(self.test_users)}")
+
+    def _create_train_rating_matrix(self, rating_matrix):
+        print("[DataLoader] Creating training rating matrix...")
+
+        # Get the indices of the training users
+        train_user_indices = [self.user_id_mapping[user_id] for user_id in self.train_users]
+        train_user_indices.sort()  # Ensure indices are sorted
+
+        # Extract the rows corresponding to the training users
+        train_rating_matrix = rating_matrix[train_user_indices, :]
+
+        print(f"[DataLoader] Training rating matrix shape: {train_rating_matrix.shape}")
+        print(f"[DataLoader] Number of non-zero entries: {train_rating_matrix.nnz}")
+
+        return train_rating_matrix
+
+    def _get_test_interactions(self):
+        print("[DataLoader] Preparing testing interactions...")
+
+        # Filter interactions to include only those from testing users
+        test_interactions = self.interactions[self.interactions['user_id'].isin(self.test_users)]
+
+        print(f"[DataLoader] Number of testing interactions: {test_interactions.shape[0]}")
+
+        return test_interactions
+
+    def get_user_indices(self, user_ids):
+        return [self.user_id_mapping[user_id] for user_id in user_ids if user_id in self.user_id_mapping]
+
+    def get_item_indices(self, item_ids):
+        return [self.item_id_mapping[item_id] for item_id in item_ids if item_id in self.item_id_mapping]

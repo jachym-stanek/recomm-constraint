@@ -1,0 +1,30 @@
+# config.yaml
+
+data:
+  user_file: '../data/users.csv'
+  item_file: 'data/items.csv'
+  interaction_file: 'data/interactions.csv'
+  rating_matrix_file: 'data/rating_matrix.csv'
+  dataset: 'movielens'
+
+segmentation:
+  properties:
+    - 'genre'  # Example property
+
+split:
+  test_size: 0.2
+  random_state: 42
+
+model:
+  num_factors: 20
+
+candidates:
+  top_n: 1000
+
+constraints:
+  segment_property: 'genre'
+
+recommendations:
+  top_n: 10
+
+user_id: 1  # Example user ID for testing

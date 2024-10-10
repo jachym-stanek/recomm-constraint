@@ -1,4 +1,4 @@
-from src.Algorithm import Algorithm
+from src.algorithms.algorithm import Algorithm
 
 
 class ILP(Algorithm):
