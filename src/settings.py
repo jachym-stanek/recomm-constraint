@@ -29,6 +29,7 @@ class Settings:
                     'include_tags': False,
                     'transformed_data_dir': '../data/movielens',
                     'rating_matrix_file': '../data/movielens/rating_matrix.npz',
+                    'id_mappings_file': '../data/movielens/movielens_id_mappings.json',
                 }
                 # Additional datasets can be added here
             },
@@ -49,7 +50,7 @@ class Settings:
                 }
             },
             'split': {
-                'test_size': 0.2,
+                'train_ratio': 0.9,
                 'random_state': 42,
             },
             'model': {
@@ -114,3 +115,7 @@ class Settings:
     @property
     def constraints(self):
         return self._config['constraints'][self.dataset_in_use]
+
+    @property
+    def recommendations(self):
+        return self._config['recommendations']

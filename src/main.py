@@ -1,15 +1,38 @@
 from scipy.sparse import csr_matrix, load_npz
 import numpy as np
 
-rating_matrix_file  = '../data/movielens/movielens_rating_matrix.npz'
-rating_matrix = load_npz(rating_matrix_file)
-
-print(f"Rating matrix shape: {rating_matrix.shape}")
-print(f"Rating matrix density: {rating_matrix.nnz / (rating_matrix.shape[0] * rating_matrix.shape[1]):.5f}")
-
-# find numbers of ratings per rating value
-rating_values, rating_counts = np.unique(rating_matrix.data, return_counts=True)
-rating_dist = dict(zip(rating_values, rating_counts))
-print(f"Rating distribution: {rating_dist}")
+from src.data_mapper import MatrixMapper
+from src.data_split import DataSplitter
+from src.evaluator import Evaluator
+from src.models import ALSModel
+from src.settings import Settings
 
 
+def main():
+    settings = Settings()
+    mapping = MatrixMapper.load_from_files(settings.dataset['id_mappings_file'])
+    data_splitter = DataSplitter(settings)
+    data_splitter.load_data('movielens')
+    data_splitter.split_data()
+    train_dataset= data_splitter.get_train_data()
+    test_dataset = data_splitter.get_test_data()
+
+    print(f"Train rating matrix shape: {train_dataset.matrix.shape}, Number of users: {len(train_dataset.user_ids)}")
+    print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset.user_ids)}")
+
+    model = ALSModel()
+    model.train(train_dataset)
+
+    # Evaluate the model
+    evaluator = Evaluator(log_every=2)
+    metrics = evaluator.evaluate_recall_at_n(
+        train_dataset=train_dataset,
+        test_dataset=test_dataset,
+        model=model,
+        N=settings.recommendations['top_n']
+    )
+    print("[ExperimentRunner] Evaluation Metrics:", metrics)
+
+
+if __name__ == "__main__":
+    main()
