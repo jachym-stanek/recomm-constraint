@@ -7,7 +7,6 @@ import os
 import json
 import random
 
-from src.data_mapper import MatrixMapper
 from src.dataset import Dataset
 from src.settings import Settings
 
@@ -118,7 +117,6 @@ class DataSplitter:
 
 if __name__ == "__main__":
     settings = Settings()  # Load default settings
-    mapping = MatrixMapper.load_from_files(settings.dataset['id_mappings_file'])
     data_splitter = DataSplitter(settings)
     data_splitter.load_data('movielens')
     data_splitter.split_data()

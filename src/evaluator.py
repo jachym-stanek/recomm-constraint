@@ -7,8 +7,9 @@ from src.dataset import Dataset
 
 
 class Evaluator:
-    def __init__(self, log_every=100):
+    def __init__(self, log_every=100, num_hidden=10):
         self.log_every = log_every
+        self.num_hidden = num_hidden # how many hidden items to evaluate recall@N per user
 
     def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
         print("[Evaluator] Evaluating Recall@N...")

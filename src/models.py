@@ -6,7 +6,6 @@ from scipy.sparse.linalg import svds
 from scipy.sparse import csr_matrix
 from implicit.als import AlternatingLeastSquares
 
-from src.data_mapper import MatrixMapper
 from src.dataset import Dataset
 
 

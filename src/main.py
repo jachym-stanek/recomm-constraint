@@ -1,7 +1,6 @@
 from scipy.sparse import csr_matrix, load_npz
 import numpy as np
 
-from src.data_mapper import MatrixMapper
 from src.data_split import DataSplitter
 from src.evaluator import Evaluator
 from src.models import ALSModel
@@ -10,7 +9,6 @@ from src.settings import Settings
 
 def main():
     settings = Settings()
-    mapping = MatrixMapper.load_from_files(settings.dataset['id_mappings_file'])
     data_splitter = DataSplitter(settings)
     data_splitter.load_data('movielens')
     data_splitter.split_data()
