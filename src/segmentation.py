@@ -5,7 +5,7 @@ import json
 from tqdm import tqdm
 
 
-class Segmentation(set):
+class Segment(set):
     def __init__(self, segment_id, segmentation_property, *args):
         super().__init__(args)
         self.segment_id = segment_id
@@ -69,13 +69,13 @@ class SegmentationExtractor:
                 # Add item to each segment corresponding to the list elements
                 for value in property_value:
                     if value not in segments:
-                        segments[value] = Segmentation(segment_id=value, segmentation_property=segmentation_property)
+                        segments[value] = Segment(segment_id=value, segmentation_property=segmentation_property)
                     segments[value].add(item_id)
             else:
                 # Add item to the segment for the single value
                 if property_value not in segments:
-                    segments[property_value] = Segmentation(segment_id=property_value,
-                                                            segmentation_property=segmentation_property)
+                    segments[property_value] = Segment(segment_id=property_value,
+                                                       segmentation_property=segmentation_property)
                 segments[property_value].add(item_id)
 
         # Return a list of Segmentation objects
