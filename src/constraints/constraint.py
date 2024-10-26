@@ -13,30 +13,42 @@ class Constraint:
 
 
 class MinItemsPerSegmentConstraint(Constraint):
-    def __init__(self, segment_id, min_items, name="MinItemsPerSegment", weight=1.0):
+    def __init__(self, segment_id, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
         super().__init__(name, weight)
         self.segment_id = segment_id
         self.min_items = min_items
+        self.window_size = window_size
 
     def check_constraint(self, solution, items, segments):
+        N = len(solution)
         segment_items = segments[self.segment_id]
-        count = sum(1 for item_id in solution.values() if item_id in segment_items)
-        return count >= self.min_items
+        for i in range(N - self.window_size + 1):
+            window = list(solution.values())[i:i + self.window_size]
+            count = sum(1 for item_id in window if item_id in segment_items)
+            if count < self.min_items:
+                return False
+        return True
 
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, min_items={self.min_items})"
 
 
 class MaxItemsPerSegmentConstraint(Constraint):
-    def __init__(self, segment_id, max_items, name="MaxItemsPerSegment", weight=1.0):
+    def __init__(self, segment_id, max_items, window_size, name="MaxItemsPerSegment", weight=1.0):
         super().__init__(name, weight)
         self.segment_id = segment_id
         self.max_items = max_items
+        self.window_size = window_size
 
     def check_constraint(self, solution, items, segments):
+        N = len(solution)
         segment_items = segments[self.segment_id]
-        count = sum(1 for item_id in solution.values() if item_id in segment_items)
-        return count <= self.max_items
+        for i in range(N - self.window_size + 1):
+            window = list(solution.values())[i:i + self.window_size]
+            count = sum(1 for item_id in window if item_id in segment_items)
+            if count > self.max_items:
+                return False
+        return True
 
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, max_items={self.max_items})"

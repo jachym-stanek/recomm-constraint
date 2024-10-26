@@ -61,19 +61,25 @@ class ILP(Algorithm):
                 segment_id = constraint.segment_id
                 min_items = constraint.min_items
                 segment_items = segments[segment_id]
-                model.addConstr(
-                    quicksum(x[i, p] for i in segment_items for p in positions) >= min_items,
-                    name=f"MinItems_{segment_id}"
-                )
+                window_size = constraint.window_size
+                for i in range(N - window_size + 1):
+                    window = list(range(i + 1, i + window_size + 1))
+                    model.addConstr(
+                        quicksum(x[i, p] for i in segment_items for p in window) >= min_items,
+                        name=f"MinItems_{segment_id}_{i}"
+                    )
 
             elif isinstance(constraint, MaxItemsPerSegmentConstraint):
                 segment_id = constraint.segment_id
                 max_items = constraint.max_items
                 segment_items = segments[segment_id]
-                model.addConstr(
-                    quicksum(x[i, p] for i in segment_items for p in positions) <= max_items,
-                    name=f"MaxItems_{segment_id}"
-                )
+                window_size = constraint.window_size
+                for i in range(N - window_size + 1):
+                    window = list(range(i + 1, i + window_size + 1))
+                    model.addConstr(
+                        quicksum(x[i, p] for i in segment_items for p in window) <= max_items,
+                        name=f"MaxItems_{segment_id}_{i}"
+                    )
 
             elif isinstance(constraint, ItemFromSegmentAtPositionConstraint):
                 segment_id = constraint.segment_id

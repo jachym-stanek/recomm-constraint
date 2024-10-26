@@ -76,30 +76,30 @@ def main():
     segments = [seg1, seg2, seg3, seg4]
 
     # Test Case 1: Single Constraint
-    constraints = [
-        MinItemsPerSegmentConstraint(segment_id='genre2', min_items=2)
-    ]
     N = 5
+    constraints = [
+        MinItemsPerSegmentConstraint(segment_id='genre2', min_items=2, window_size=N)
+    ]
     run_test("Test Case 1", solver, items, segments, constraints, N)
 
     # Test Case 2: Multiple Constraints
+    N = 7
     constraints = [
         ItemFromSegmentAtPositionConstraint(segment_id='genre1', position=1),
-        MaxItemsPerSegmentConstraint(segment_id='genre3', max_items=2),
+        MaxItemsPerSegmentConstraint(segment_id='genre3', max_items=2, window_size=N),
         ItemAtPositionConstraint(item_id='item6', position=3)
     ]
-    N = 7
     run_test("Test Case 2", solver, items, segments, constraints, N)
 
     # Test Case 3: Multiple Constraints
+    N = 5
     constraints = [
         ItemFromSegmentAtPositionConstraint(segment_id='genre1', position=1),
-        MinItemsPerSegmentConstraint(segment_id='genre3', min_items=2),
-        MaxItemsPerSegmentConstraint(segment_id='genre3', max_items=4),
+        MinItemsPerSegmentConstraint(segment_id='genre3', min_items=2, window_size=N),
+        MaxItemsPerSegmentConstraint(segment_id='genre3', max_items=4, window_size=N),
         ItemAtPositionConstraint(item_id='item6', position=3),
-        MaxItemsPerSegmentConstraint(segment_id='genre1', max_items=2)
+        MaxItemsPerSegmentConstraint(segment_id='genre1', max_items=2, window_size=N)
     ]
-    N = 5
     run_test("Test Case 3", solver, items, segments, constraints, N)
 
     # Test Case 4: Hard Constraints, use 100 candidate items for N=10
@@ -111,20 +111,40 @@ def main():
     segment5 = Segment('segment5', 'genre', *list(items.keys())[:10])
     segments = [segment1, segment2, segment3, segment4, segment5]
 
+    N = 10
     constraints = [
         ItemFromSegmentAtPositionConstraint(segment_id='segment3', position=3),
         ItemAtPositionConstraint(item_id='item-50', position=5),
 
-        MinItemsPerSegmentConstraint(segment_id='segment2', min_items=2),
-        MinItemsPerSegmentConstraint(segment_id='segment5', min_items=2),
+        MinItemsPerSegmentConstraint(segment_id='segment2', min_items=2, window_size=N),
+        MinItemsPerSegmentConstraint(segment_id='segment5', min_items=2, window_size=N),
 
-        MaxItemsPerSegmentConstraint(segment_id='segment2', max_items=2),
-        MaxItemsPerSegmentConstraint(segment_id='segment3', max_items=3),
-        MaxItemsPerSegmentConstraint(segment_id='segment4', max_items=3)
+        MaxItemsPerSegmentConstraint(segment_id='segment2', max_items=2, window_size=N),
+        MaxItemsPerSegmentConstraint(segment_id='segment3', max_items=3, window_size=N),
+        MaxItemsPerSegmentConstraint(segment_id='segment4', max_items=3, window_size=N)
     ]
-    N = 10
-
     run_test("Test Case 4", solver, items, segments, constraints, N)
+
+    # Test Case 5: Hard Constraints, use 100 candidate items for N=10, sliding window constraints
+    N = 10
+    # reassign items to non-overlapping segments
+    segment1 = Segment('segment1', 'genre', *list(items.keys())[:25])
+    segment2 = Segment('segment2', 'genre', *list(items.keys())[25:50])
+    segment3 = Segment('segment3', 'genre', *list(items.keys())[50:75])
+    segment4 = Segment('segment4', 'genre', *list(items.keys())[75:])
+    segments = [segment1, segment2, segment3, segment4]
+    constraints = [
+        MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=4),
+        MinItemsPerSegmentConstraint(segment_id='segment2', min_items=1, window_size=4),
+        MinItemsPerSegmentConstraint(segment_id='segment3', min_items=2, window_size=N),
+        MinItemsPerSegmentConstraint(segment_id='segment4', min_items=1, window_size=7),
+
+        MaxItemsPerSegmentConstraint(segment_id='segment1', max_items=3, window_size=5),
+        MaxItemsPerSegmentConstraint(segment_id='segment2', max_items=3, window_size=N),
+        MaxItemsPerSegmentConstraint(segment_id='segment3', max_items=5, window_size=N),
+
+    ]
+    run_test("Test Case 5", solver, items, segments, constraints, N)
 
 
 if __name__ == "__main__":
