@@ -3,7 +3,6 @@
 import numpy as np
 from sklearn.decomposition import NMF
 from scipy.sparse.linalg import svds
-from scipy.sparse import csr_matrix
 from implicit.als import AlternatingLeastSquares
 
 from src.dataset import Dataset
@@ -67,20 +66,15 @@ class ALSModel(BaseModel):
         # Train the model
         self.model.fit(rating_matrix_T * self.alpha)
 
-    def recommend(self, user_id, observed_items, N, train_dataset: Dataset, test_dataset: Dataset):
+    def recommend(self, user_id, user_observation, observed_items, N, train_dataset: Dataset, test_dataset: Dataset):
         if not user_id in train_dataset.user_ids:
             # Cold-start user: Recalculate user factors based on observed items
-            user_items = csr_matrix(
-                (np.ones(len(observed_items)),
-                 ([0] * len(observed_items), [train_dataset.item_id2idx[item_id] for item_id in observed_items])),
-                shape=(1, train_dataset.num_items)
-            )
             # Generate recommendations using the recalculated user
             recommended = self.model.recommend(
                 userid=-1, # Dummy user ID
-                user_items=user_items,
+                user_items=user_observation,
                 N=N,
-                filter_items=[train_dataset.item_id2idx[item_id] for item_id in observed_items],
+                filter_items=list(observed_items),
                 recalculate_user=True
             )
         else:
@@ -89,7 +83,7 @@ class ALSModel(BaseModel):
                 userid=train_dataset.user_id2idx[user_id],
                 user_items=None,  # Not needed since user factors are precomputed
                 N=N,
-                filter_items=[train_dataset.item_id2idx[item_id] for item_id in observed_items],
+                filter_already_liked_items=True,
                 recalculate_user=False
             )
 

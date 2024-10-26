@@ -50,7 +50,7 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.9,
+                'train_ratio': 0.99,
                 'random_state': 42,
             },
             'model': {

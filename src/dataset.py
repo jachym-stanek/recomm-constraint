@@ -7,3 +7,6 @@ class Dataset:
         self.item_idx2id = {idx: item_id for item_id, idx in item_mapping.items()}
         self.num_users, self.num_items = matrix.shape
         self.user_ids = user_ids
+
+    def __len__(self):
+        return self.num_users
