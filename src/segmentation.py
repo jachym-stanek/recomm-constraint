@@ -27,6 +27,8 @@ class Segment(set):
 
 class SegmentationExtractor:
     def __init__(self, dataset_info_path, items_file_path):
+        self.segments = None
+
         # Load dataset information
         with open(dataset_info_path, 'r') as f:
             self.dataset_info = json.load(f)
@@ -79,7 +81,19 @@ class SegmentationExtractor:
                 segments[property_value].add(item_id)
 
         # Return a list of Segmentation objects
-        return list(segments.values())
+        self.segments = list(segments.values())
+        return self.segments
+
+    def get_segments_for_recomms(self, recomms):
+        recomms_segments = []
+        for segment in self.segments:
+            segment_items = []
+            for item in recomms:
+                if item in segment:
+                    segment_items.append(item)
+            if len(segment_items) > 0:
+                recomms_segments.append(Segment(segment.segment_id, segment.segmentation_property, *segment_items))
+        return recomms_segments
 
 
 if __name__ == "__main__":
