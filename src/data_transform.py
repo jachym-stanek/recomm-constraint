@@ -83,6 +83,12 @@ class DatasetTransformer:
         })
         interactions['interaction_type'] = 'rating'
         interactions['source'] = 'explicit'  # All interactions are explicit for MovieLens
+
+        # subtract mean
+        interactions['interaction_value'] = interactions['interaction_value'] - interactions['interaction_value'].mean()
+
+        # remove duplicates
+        interactions = interactions.drop_duplicates(subset=['user_id', 'item_id'])
         interactions_file = os.path.join(transformed_data_dir, 'interactions.csv')
         interactions.to_csv(interactions_file, index=False)
 

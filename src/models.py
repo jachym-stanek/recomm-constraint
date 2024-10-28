@@ -2,6 +2,7 @@
 
 import numpy as np
 from sklearn.decomposition import NMF
+from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
 from implicit.als import AlternatingLeastSquares
 
@@ -51,48 +52,52 @@ class ALSModel(BaseModel):
     def train(self, train_dataset: Dataset):
         print("[ALSModel] Training ALS model using implicit library...")
 
-        # Transpose the rating matrix to (items x users)
-        # rating_matrix_T = train_dataset.matrix.T.tocsr()
-        rating_matrix_T = train_dataset.matrix.tocsr()
+        rating_matrix = train_dataset.matrix.tocsr()
 
         # Initialize the model
         self.model = AlternatingLeastSquares(
             factors=self.num_factors,
             regularization=self.regularization,
             iterations=self.num_iterations,
+            calculate_training_loss=True,
             use_gpu=False  # Set to True if you have a compatible GPU and CuPy installed
         )
 
         # Train the model
-        self.model.fit(rating_matrix_T * self.alpha)
+        self.model.fit(rating_matrix * self.alpha)
 
-    def recommend(self, user_id, user_observation, observed_items, N, train_dataset: Dataset, test_dataset: Dataset):
-        if not user_id in train_dataset.user_ids:
+    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, cold_start: bool = True):
+        if cold_start:
             # Cold-start user: Recalculate user factors based on observed items
             # Generate recommendations using the recalculated user
             recommended = self.model.recommend(
                 userid=-1, # Dummy user ID
                 user_items=user_observation,
                 N=N,
-                filter_items=list(observed_items),
+                filter_items=observed_items,
                 recalculate_user=True
             )
         else:
             # Known user: Use the precomputed user factors
             recommended = self.model.recommend(
-                userid=train_dataset.user_id2idx[user_id],
+                userid=user,
                 user_items=None,  # Not needed since user factors are precomputed
                 N=N,
                 filter_already_liked_items=True,
                 recalculate_user=False
             )
 
-        # Map item indices back to item IDs
-        indexes, scores = recommended
-        # print(f"[ALSModel] Recommended item indexes: {indexes}")
-        recommended_item_ids = [train_dataset.item_idx2id[item_idx] for item_idx in indexes]
+        return recommended
 
-        return recommended_item_ids
+    # only implemented for cold start
+    def recommend_batch(self, users: list, user_observation: csr_matrix, observed_items: np.array, N: int):
+        return self.model.recommend(
+            userid=users,  # passed to keep the number of returned items consistent
+            user_items=user_observation,
+            N=N,
+            filter_items=observed_items,
+            recalculate_user=True
+        )
 
 
 class SGDModel(BaseModel):

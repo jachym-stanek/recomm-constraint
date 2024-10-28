@@ -19,10 +19,10 @@ def main():
     train_dataset= data_splitter.get_train_data()
     test_dataset = data_splitter.get_test_data()
 
-    print(f"Train rating matrix shape: {train_dataset.matrix.shape}, Number of users: {len(train_dataset.user_ids)}")
-    print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset.user_ids)}")
+    print(f"Train rating matrix shape: {train_dataset.matrix.shape}, Number of users: {len(train_dataset)}")
+    print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset)}")
 
-    factors = [50, 100, 200, 500, 1000, 5000]
+    factors = [1, 2, 5, 10, 20, 50, 100, 200, 500]
     regularizations = [0.001, 0.005, 0.01, 0.5]
 
     results = []
@@ -65,6 +65,8 @@ def main():
 
     plt.show()
 
+    print(f"Execution time: {time.time() - start_time:.2f} seconds")
+
 def run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regularization):
     print(f"[ExperimentRunner] Running ALS experiment with num_factors={num_factors}, regularization={regularization}...")
 
@@ -72,13 +74,14 @@ def run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regul
     model.train(train_dataset)
 
     # Evaluate the model
-    evaluator = Evaluator(log_every=10, num_hidden=20)
-    metrics = evaluator.evaluate_recall_at_n(
-        train_dataset=train_dataset,
-        test_dataset=test_dataset,
-        model=model,
-        N=settings.recommendations['top_n']
-    )
+    evaluator = Evaluator(log_every=10, num_hidden=40)
+    # metrics = evaluator.evaluate_recall_at_n(
+    #     train_dataset=train_dataset,
+    #     test_dataset=test_dataset,
+    #     model=model,
+    #     N=settings.recommendations['top_n']
+    # )
+    metrics = evaluator.evaluate_recall_at_n_batch(train_dataset, test_dataset, model, N=settings.recommendations['top_n'])
     print("[ExperimentRunner] Evaluation Metrics:", metrics)
 
     return metrics
