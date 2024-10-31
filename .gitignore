@@ -160,3 +160,6 @@ cython_debug/
 # Data will not be uploaded for now
 data/
 notes.txt
+
+# exclude the results logs
+src/results*.txt
