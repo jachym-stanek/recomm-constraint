@@ -30,8 +30,14 @@ class Settings:
                     'transformed_data_dir': '../data/movielens',
                     'rating_matrix_file': '../data/movielens/rating_matrix.npz',
                     'id_mappings_file': '../data/movielens/movielens_id_mappings.json',
+                },
+                'bookcrossing': {
+                    'users_file': '../data/bookcrossing_raw/BX-Users.csv',
+                    'books_file': '../data/bookcrossing_raw/BX-Books.csv',
+                    'ratings_file': '../data/bookcrossing_raw/BX-Book-Ratings.csv',
+                    'transformed_data_dir': '../data/bookcrossing',
                 }
-                # Additional datasets can be added here
+
             },
             'aggregation_settings': {
                 'movielens': 'explicit_only',  # Options: explicit_only, implicit_only, explicit_and_implicit
@@ -50,11 +56,8 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.99,
+                'train_ratio': 0.992,
                 'random_state': 42,
-            },
-            'model': {
-                'num_factors': 20,
             },
             'candidates': {
                 'top_n': 1000,
@@ -64,8 +67,12 @@ class Settings:
             },
             'recommendations': {
                 'top_n': 10,
+                'num_hidden': 20,
             },
-            'user_id': 1,  # Default user ID for testing
+            'use_gpu': True,
+            'logging': {
+                'log_every': 10,
+            },
         }
 
     def _load_config_file(self, config_file):
@@ -119,3 +126,11 @@ class Settings:
     @property
     def recommendations(self):
         return self._config['recommendations']
+
+    @property
+    def use_gpu(self):
+        return self._config['use_gpu']
+
+    @property
+    def log_every(self):
+        return self._config['logging']['log_every']

@@ -1,6 +1,7 @@
 # models.py
 
 import numpy as np
+from scipy.stats import alpha
 from sklearn.decomposition import NMF
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
@@ -42,12 +43,13 @@ class BaseModel:
 
 
 class ALSModel(BaseModel):
-    def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0):
+    def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0, use_gpu=False):
         super().__init__()
         self.num_factors = num_factors
         self.num_iterations = num_iterations
         self.regularization = regularization
         self.alpha = alpha  # Confidence scaling factor
+        self.use_gpu = use_gpu
 
     def train(self, train_dataset: Dataset):
         print("[ALSModel] Training ALS model using implicit library...")
@@ -60,8 +62,11 @@ class ALSModel(BaseModel):
             regularization=self.regularization,
             iterations=self.num_iterations,
             calculate_training_loss=True,
-            use_gpu=False  # Set to True if you have a compatible GPU and CuPy installed
+            use_gpu=self.use_gpu,
+            alpha=self.alpha
         )
+
+        print("[ALSModel] Using model:", type(self.model))
 
         # Train the model
         self.model.fit(rating_matrix * self.alpha)

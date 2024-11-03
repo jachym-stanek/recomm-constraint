@@ -146,6 +146,20 @@ def main():
     ]
     run_test("Test Case 5", solver, items, segments, constraints, N)
 
+    # 1000 candidate items for N=50
+    N = 50
+    items = {f'item-{i}': random.uniform(0, 10) for i in range(1, 1001)}
+    # 10 non overlapping segments
+    segments = [Segment(f'segment{i}', 'genre', *list(items.keys())[i*100:(i+1)*100]) for i in range(10)]
+    min_window_constraints = [
+        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2, window_size=10) for i in range(10)
+    ]
+    max_window_constraints = [
+        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3, window_size=10) for i in range(10)
+    ]
+    random_constraints = random.choices(min_window_constraints + max_window_constraints, k=10)
+    run_test("Test Case 6", solver, items, segments, random_constraints, N)
+
 
 if __name__ == "__main__":
     main()

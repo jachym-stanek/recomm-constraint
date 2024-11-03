@@ -84,8 +84,12 @@ class DatasetTransformer:
         interactions['interaction_type'] = 'rating'
         interactions['source'] = 'explicit'  # All interactions are explicit for MovieLens
 
-        # subtract mean
-        interactions['interaction_value'] = interactions['interaction_value'] - interactions['interaction_value'].mean()
+        # # subtract mean
+        interactions['interaction_value'] = interactions['interaction_value'] - 3.0 # interactions['interaction_value'].mean()
+        # leave only positive interactions (ratings > 3)
+        # interactions = interactions[interactions['interaction_value'] > 3]
+        # # set all interactions to 1
+        # interactions['interaction_value'] = 1.0
 
         # remove duplicates
         interactions = interactions.drop_duplicates(subset=['user_id', 'item_id'])
@@ -125,6 +129,9 @@ class DatasetTransformer:
             json.dump(dataset_info, f, indent=4)
 
         print(f"[DatasetTransformer] Transformation complete. Transformed data saved in '{transformed_data_dir}'.")
+
+    def _transform_bookcrossing(self):
+        pass
 
 if __name__ == "__main__":
     settings = Settings() # Load default settings

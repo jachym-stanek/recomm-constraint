@@ -5,15 +5,16 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from src.dataset import Dataset
+from src.settings import Settings
 
 
 class Evaluator:
-    def __init__(self, log_every=100, num_hidden=10):
-        self.log_every = log_every
-        self.num_hidden = num_hidden # how many hidden items to evaluate recall@N per user
+    def __init__(self, settings: Settings):
+        self.log_every = settings.log_every
+        self.num_hidden = settings.recommendations['num_hidden'] # how many hidden items to evaluate recall@N per user
 
     def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
-        print("[Evaluator] Evaluating Recall@N...")
+        print(f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall = 0.0
         user_count = 0
         total_items_recommended = set()
@@ -64,15 +65,15 @@ class Evaluator:
     def evaluate_recall_at_n_batch(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
         user_groups = self.separate_test_users_by_interactions(test_dataset)
 
-        for num_relevant_items, users in user_groups.values():
+        for num_relevant_items, users in user_groups.items():
             print(f"[Evaluator] Evaluating Recall@N for users with {num_relevant_items} relevant items...")
             users_interaction_matrix = test_dataset.matrix[users]
-            user_relevant_items = np.where(test_dataset.matrix[users].toarray() > 0)[1]
-            print(f"[Evaluator] User relevant items: {user_relevant_items.shape}")
+            users_relevant_items = np.array([np.where(test_dataset.matrix[user].toarray() > 0)[1] for user in users])
+            print(f"[Evaluator] User relevant items shape: {users_relevant_items}")
 
             for hidden_item_idx in range(num_relevant_items):
-                hidden_items = user_relevant_items[hidden_item_idx]
-                observed_items = np.delete(user_relevant_items, hidden_item_idx)
+                hidden_items = users_relevant_items[hidden_item_idx]
+                observed_items = np.delete(users_relevant_items, hidden_item_idx)
                 users_observations = csr_matrix(users_interaction_matrix[:, observed_items])
 
                 recomms, scores = model.recommend_batch(users, users_observations, observed_items, N)
