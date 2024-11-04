@@ -1,15 +1,13 @@
 import random
 import time
 
-from typing_extensions import runtime
-
 from algorithms.ILP import ILP
 from segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
     ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint
 
 
-def run_test(test_name, solver, items, segments, constraints, N):
+def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False):
     print(f"\n=== {test_name} ===")
     start_time = time.time()
     segments_id_dict = {seg.id: seg for seg in segments}
@@ -22,7 +20,7 @@ def run_test(test_name, solver, items, segments, constraints, N):
             if not constraint.check_constraint(recommended_items, items, segments_id_dict):
                 print(f"Constraint {constraint} is not satisfied.")
                 all_constraints_satisfied = False
-        if all_constraints_satisfied:
+        if all_constraints_satisfied or using_soft_constraints:
             print(f"All constraints are satisfied for {test_name}.")
             print("Recommended Items:")
             total_score = 0
@@ -38,7 +36,7 @@ def run_test(test_name, solver, items, segments, constraints, N):
     elapsed_time = time.time() - start_time
     print(f"Elapsed time: {elapsed_time:.4f} seconds")
 
-    return elapsed_time
+    return elapsed_time * 1000  # Convert to milliseconds
 
 
 def main():
@@ -150,7 +148,7 @@ def main():
     N = 50
     items = {f'item-{i}': random.uniform(0, 10) for i in range(1, 1001)}
     # 10 non overlapping segments
-    segments = [Segment(f'segment{i}', 'genre', *list(items.keys())[i*100:(i+1)*100]) for i in range(10)]
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*100:(i+1)*100]) for i in range(10)]
     min_window_constraints = [
         MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2, window_size=10) for i in range(10)
     ]
@@ -160,6 +158,103 @@ def main():
     random_constraints = random.choices(min_window_constraints + max_window_constraints, k=10)
     run_test("Test Case 6", solver, items, segments, random_constraints, N)
 
+    # Test Case 7: 100 candidate items for N=10, soft constraints
+    N = 10
+    items = {f'item-{i}': random.uniform(0, 10) for i in range(1, 101)}
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
+    constraints = [
+        MinItemsPerSegmentConstraint(segment_id=f'segment0', min_items=1, window_size=5, weight=1.0),
+        MinItemsPerSegmentConstraint(segment_id=f'segment1', min_items=1, window_size=5, weight=0.9),
+        MinItemsPerSegmentConstraint(segment_id=f'segment2', min_items=1, window_size=5, weight=0.8),
+        MinItemsPerSegmentConstraint(segment_id=f'segment3', min_items=1, window_size=5, weight=0.7),
+        MinItemsPerSegmentConstraint(segment_id=f'segment4', min_items=1, window_size=5, weight=0.6),
+        MinItemsPerSegmentConstraint(segment_id=f'segment5', min_items=1, window_size=5, weight=0.5),
+    ]
+    run_test("Test Case 7", solver, items, segments, constraints, N, using_soft_constraints=True)
+
+
+def ILP_time_efficiency(constraint_weight=1.0):
+    solver = ILP()
+    num_recomms = [5, 10, 20, 50, 100, 200, 500] # N
+    num_candidates = [10, 50, 100, 200, 500, 1000] # M
+    num_constraints = [1, 2, 3, 4, 5, 10] # C
+    num_segments = {10: 2, 50: 10, 100: 10, 200: 20, 500: 50, 1000: 100} # M -> S
+    elapsed_times = dict() # (N, M, C) -> elapsed_time
+
+    for N in num_recomms:
+        for M in num_candidates:
+            if M < N:
+                continue
+            items = {f'item-{i}': random.uniform(0, 10) for i in range(1, M+1)}
+            S = num_segments[M]
+            segments = segments = [Segment(f'segment{i}', 'prop', *list(items.keys())[i*S:(i+1)*S]) for i in range(S)]
+            available_constraints = [
+                                        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=N//5,
+                                                                     window_size=N, weight=constraint_weight) for i in range(S)
+                                    ] + [
+                                        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=N//5+1,
+                                                                     window_size=N, weight=constraint_weight) for i in range(S)
+                                    ] + [
+                                        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2,
+                                                                     window_size=5, weight=constraint_weight) for i in range(S)
+                                    ] + [
+                                        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3,
+                                                                     window_size=5, weight=constraint_weight) for i in range(S)
+                                    ]
+            for C in num_constraints:
+                constraints = random.choices(available_constraints, k=C)
+                elapsed_time = run_test(f"Test Case ({N}, {M}, {C})", solver, items, segments, constraints, N)
+                elapsed_times[(N, M, C)] = elapsed_time
+
+    plot_results(elapsed_times)
+
+
+def plot_results(results: dict):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import pandas as pd
+
+    num_recomms = [5, 10, 20, 50, 100, 200, 500]  # N
+    num_candidates = [10, 50, 100, 200, 500, 1000]  # M
+    num_constraints = [1, 2, 3, 4, 5, 10]  # C
+
+    # Convert the results dictionary into a pandas DataFrame for easier manipulation
+    data = []
+    for (N, M, C), elapsed_time in results.items():
+        data.append({'N': N, 'M': M, 'C': C, 'Time': elapsed_time})
+    df = pd.DataFrame(data)
+
+    # Iterate over each value of N and create a heatmap of Time vs M and C
+    for N in num_recomms:
+        df_N = df[df['N'] == N]
+        if df_N.empty:
+            continue  # Skip if there is no data for this N
+
+        # Pivot the DataFrame to get M as rows, C as columns, and Time as values
+        pivot_table = df_N.pivot(index='M', columns='C', values='Time')
+
+        # Plot the heatmap with color bar label
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(
+            pivot_table,
+            annot=True,
+            fmt=".4f",
+            cmap='viridis',
+            cbar_kws={'label': 'Elapsed Time (milliseconds)'}
+        )
+
+        # Add labels and title with time units
+        plt.title(f'ILP Time Efficiency for N={N}')
+        plt.xlabel('Number of Constraints (C)')
+        plt.ylabel('Number of Candidates (M)')
+
+        plt.tight_layout()
+        plt.show()
+
+
 
 if __name__ == "__main__":
     main()
+    # ILP_time_efficiency()
+    # ILP_time_efficiency(constraint_weight=0.9)

@@ -28,11 +28,8 @@ class ILP(Algorithm):
         # Create decision variables x[i,p] for item i at position p
         x = model.addVars(item_ids, positions, vtype=GRB.BINARY, name="x")
 
-        # Objective function: Maximize the total score of selected items
-        model.setObjective(
-            quicksum(items[i] * x[i, p] for i in item_ids for p in positions),
-            GRB.MAXIMIZE
-        )
+        # Initialize penalties list
+        model._penalties = []
 
         # Constraint 1: Each item is selected at most once
         for i in item_ids:
@@ -54,52 +51,17 @@ class ILP(Algorithm):
             name="TotalItems"
         )
 
+        # Penalty scaling factor K (total possible score)
+        K = sum(items.values())
+
         # Process each constraint in the constraints list
         for constraint in constraints:
+            constraint.add_to_model(model, x, items, segments, positions, N, K)
 
-            if isinstance(constraint, MinItemsPerSegmentConstraint):
-                segment_id = constraint.segment_id
-                min_items = constraint.min_items
-                segment_items = segments[segment_id]
-                window_size = constraint.window_size
-                for i in range(N - window_size + 1):
-                    window = list(range(i + 1, i + window_size + 1))
-                    model.addConstr(
-                        quicksum(x[i, p] for i in segment_items for p in window) >= min_items,
-                        name=f"MinItems_{segment_id}_{i}"
-                    )
-
-            elif isinstance(constraint, MaxItemsPerSegmentConstraint):
-                segment_id = constraint.segment_id
-                max_items = constraint.max_items
-                segment_items = segments[segment_id]
-                window_size = constraint.window_size
-                for i in range(N - window_size + 1):
-                    window = list(range(i + 1, i + window_size + 1))
-                    model.addConstr(
-                        quicksum(x[i, p] for i in segment_items for p in window) <= max_items,
-                        name=f"MaxItems_{segment_id}_{i}"
-                    )
-
-            elif isinstance(constraint, ItemFromSegmentAtPositionConstraint):
-                segment_id = constraint.segment_id
-                position = constraint.position
-                segment_items = segments[segment_id]
-                model.addConstr(
-                    quicksum(x[i, position] for i in segment_items) >= 1,
-                    name=f"SegmentAtPosition_{segment_id}_{position}"
-                )
-
-            elif isinstance(constraint, ItemAtPositionConstraint):
-                item_id = constraint.item_id
-                position = constraint.position
-                model.addConstr(
-                    x[item_id, position] == 1,
-                    name=f"ItemAtPosition_{item_id}_{position}"
-                )
-
-            else:
-                raise ValueError(f"[{self.name}]Unsupported constraint type: {type(constraint)}")
+        # Objective function: Maximize total score - total penalty
+        total_score = quicksum(items[i] * x[i, p] for i in item_ids for p in positions)
+        total_penalty = quicksum(penalty_coeff * s for s, penalty_coeff in model._penalties)
+        model.setObjective(total_score - total_penalty, GRB.MAXIMIZE)
 
         # Optimize the model
         model.optimize()
@@ -116,7 +78,7 @@ class ILP(Algorithm):
             # Return the recommended items sorted by position
             result = {k: solution[k] for k in sorted(solution)}
         else:
-            print(f"[{self.name}]No optimal solution found.")
+            print(f"[{self.name}] No optimal solution found.")
 
         end = time.time()
         print(f"[{self.name}] Finished in {(end - start) * 1000:.2f} ms")
