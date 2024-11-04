@@ -22,6 +22,7 @@ class DataSplitter:
         self.rating_matrix = None
 
     def load_data(self, dataset_name):
+        self.settings.set_dataset_in_use(dataset_name)
         print(f"[DataSplitter] Loading data for dataset '{dataset_name}'...")
 
         dataset_dir = self.settings.dataset.get('transformed_data_dir')

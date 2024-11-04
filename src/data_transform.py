@@ -13,7 +13,7 @@ from src.settings import Settings
 class DatasetTransformer:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.supported_datasets = ['movielens']  # Extend this list as more datasets are supported
+        self.supported_datasets = ['movielens', 'bookcrossing']  # Extend this list as more datasets are supported
 
     def transform(self, datasets_to_transform: list):
         for dataset_name in datasets_to_transform:
@@ -28,7 +28,7 @@ class DatasetTransformer:
 
     def _transform_movielens(self):
         # Ensure movielens dataset is configured
-        settings.set_dataset_in_use('movielens')
+        self.settings.set_dataset_in_use('movielens')
 
         # Paths to raw data files
         movies_file = self.settings.dataset.get('movies_file')
@@ -131,9 +131,100 @@ class DatasetTransformer:
         print(f"[DatasetTransformer] Transformation complete. Transformed data saved in '{transformed_data_dir}'.")
 
     def _transform_bookcrossing(self):
-        pass
+        # Ensure bookcrossing dataset is configured
+        self.settings.set_dataset_in_use('bookcrossing')
+
+        # Paths to raw data files
+        users_file = self.settings.dataset.get('users_file')
+        books_file = self.settings.dataset.get('books_file')
+        ratings_file = self.settings.dataset.get('ratings_file')
+        transformed_data_dir = self.settings.dataset.get('transformed_data_dir')
+
+        # Check if files exist
+        required_files = [users_file, books_file, ratings_file]
+        for file in required_files:
+            if not os.path.exists(file):
+                raise FileNotFoundError(f"[DatasetTransformer] Required file '{file}' not found for BookCrossing dataset.")
+
+        # Load raw data
+        users = pd.read_csv(users_file, sep=';', encoding='latin1')
+        books = pd.read_csv(books_file, sep=';', encoding='latin1')
+        ratings = pd.read_csv(ratings_file, sep=';', encoding='latin1')
+
+        # Transform users data
+        print("[DatasetTransformer] Extracting users data...")
+        users = users.rename(columns={
+            'User-ID': 'user_id',
+            'Location': 'location',
+            'Age': 'age'
+        })
+        user_properties = ['location', 'age']
+
+        # Transform items data
+        print("[DatasetTransformer] Extracting items data...")
+        items = books.rename(columns={
+            'ISBN': 'item_id',
+            'Book-Title': 'title',
+            'Book-Author': 'author',
+            'Year-Of-Publication': 'year_of_publication',
+            'Publisher': 'publisher'
+        })
+        item_properties = ['title', 'author', 'year_of_publication', 'publisher']
+        items_file = os.path.join(transformed_data_dir, 'items.csv')
+        items.to_csv(items_file, index=False)
+        print(f"[DatasetTransformer] Extracted {items.shape[0]} items with columns: {', '.join(items.columns)}")
+
+        # Transform interactions data
+        print("[DatasetTransformer] Extracting interactions data...")
+        interactions = ratings.rename(columns={
+            'User-ID': 'user_id',
+            'ISBN': 'item_id',
+            'Book-Rating': 'interaction_value'
+        })
+        interactions['interaction_type'] = 'rating'
+        interactions['source'] = 'explicit'
+
+        # subtract median rating
+        print(f"[DatasetTransformer] Subtracting median rating (5.0) from interactions...")
+        interactions['interaction_value'] = interactions['interaction_value'] - 5.0
+
+        # # leave only positive interactions (ratings > 0)
+        # interactions = interactions[interactions['interaction_value'] > 0]
+        #
+        # # set all interactions to 1
+        # interactions['interaction_value'] = 1.0
+
+        # remove duplicates
+        interactions = interactions.drop_duplicates(subset=['user_id', 'item_id'])
+        interactions_file = os.path.join(transformed_data_dir, 'interactions.csv')
+        interactions.to_csv(interactions_file, index=False)
+
+        # remove users with no non-zero interactions
+        user_interactions = interactions.groupby('user_id')['interaction_value'].sum()
+        users = users[users['user_id'].isin(user_interactions[user_interactions != 0].index)]
+        users_file = os.path.join(transformed_data_dir, 'users.csv')
+        users.to_csv(users_file, index=False)
+        print(f"[DatasetTransformer] Extracted {users.shape[0]} users with columns: {', '.join(users.columns)}")
+
+        # Create dataset_info.json
+        print("[DatasetTransformer] Creating dataset_info.json...")
+        dataset_info = {
+            'num_users': users.shape[0],
+            'num_items': items.shape[0],
+            'num_interactions': interactions.shape[0],
+            'user_properties': user_properties,
+            'item_properties': item_properties,
+            'interaction_types': ['rating'],
+        }
+
+        dataset_info_file = os.path.join(transformed_data_dir, 'dataset_info.json')
+        with open(dataset_info_file, 'w') as f:
+            json.dump(dataset_info, f, indent=4)
+
+        print(f"[DatasetTransformer] Transformation complete. Transformed data saved in '{transformed_data_dir}'.")
+
 
 if __name__ == "__main__":
     settings = Settings() # Load default settings
     transformer = DatasetTransformer(settings)
-    transformer.transform(['movielens'])
+    transformer.transform(['movielens', 'bookcrossing'])

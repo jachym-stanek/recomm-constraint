@@ -3,11 +3,10 @@ import matplotlib.pyplot as plt
 # factors = [50, 100, 200, 500]
 # regularizations = [0.001, 0.005, 0.01, 0.5]
 # factors = [1, 2, 5, 10, 20, 50, 100, 200, 500]
-# regularizations = [0.001, 0.005, 0.01, 0.5]
 # num_iterations = [1, 2, 3, 5, 8, 10, 15]
 factors = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]
-# regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
-alphas = [0.1, 0.5, 1.0, 2.0, 5.0]
+regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
+# alphas = [0.1, 0.5, 1.0, 2.0, 5.0]
 
 # results = [
 #     (50, 0.001, {'average_recall': 0.006570397111913353, 'catalog_coverage': 0.039775643375614046}),
@@ -29,14 +28,14 @@ alphas = [0.1, 0.5, 1.0, 2.0, 5.0]
 # ]
 results = [
 ]
-with open('results19.txt', 'r') as f:
+with open('results32.txt', 'r') as f:
     for line in f:
         # num_factors, num_iters, metrics = eval(line)
-        num_factors, alpha , metrics = eval(line)
-        # num_factors, regularization, metrics = eval(line)
+        # num_factors, alpha , metrics = eval(line)
+        num_factors, regularization, metrics = eval(line)
         # results.append((num_factors, num_iters, metrics))
-        # results.append((num_factors, regularization, metrics))
-        results.append((num_factors, alpha, metrics))
+        results.append((num_factors, regularization, metrics))
+        # results.append((num_factors, alpha, metrics))
 print(results)
 
 
@@ -50,24 +49,24 @@ fig, ax = plt.subplots(1, 2, figsize=(14, 6))
 for num_factors in factors:
     recall = []
     catalog_coverage = []
-    # regularization_values = []
+    regularization_values = []
     # num_iters_values = []
-    alpha_values = []
+    # alpha_values = []
     for result in results:
         if result[0] == num_factors:
             recall.append(result[2]['average_recall'] * recall_multiplier)
             catalog_coverage.append(result[2]['catalog_coverage'])
-            # regularization_values.append(result[1])
+            regularization_values.append(result[1])
             # num_iters_values.append(result[1])
-            alpha_values.append(result[1])
+            # alpha_values.append(result[1])
     ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {num_factors}')
     # Annotate the points with regularization values
-    # for i, reg_value in enumerate(regularization_values):
+    for i, reg_value in enumerate(regularization_values):
     # for i, num_iters_value in enumerate(num_iters_values):
-    for i, alpha_value in enumerate(alpha_values):
-        # ax[0].annotate(f'{reg_value}', (recall[i], catalog_coverage[i]))
+    # for i, alpha_value in enumerate(alpha_values):
+        ax[0].annotate(f'{reg_value}', (recall[i], catalog_coverage[i]))
         # ax[0].annotate(f'{num_iters_value}', (recall[i], catalog_coverage[i]))
-        ax[0].annotate(f'{alpha_value}', (recall[i], catalog_coverage[i]))
+        # ax[0].annotate(f'{alpha_value}', (recall[i], catalog_coverage[i]))
 ax[0].set_xlabel(f'Average Recall@N x {recall_multiplier}')
 ax[0].set_ylabel('Catalog Coverage')
 # ax[0].set_title('Fixed Num Factors, Varying Regularization')
@@ -76,30 +75,30 @@ ax[0].set_title('Fixed Num Factors, Varying Alpha')
 ax[0].legend()
 
 # Second plot: fixed regularization, varying num_factors
-# for regularization in regularizations:
+for regularization in regularizations:
 # for num_iters in num_iterations:
-for alpha in alphas:
+# for alpha in alphas:
     recall = []
     catalog_coverage = []
     num_factors_values = []
     for result in results:
-        # if result[1] == regularization:
+        if result[1] == regularization:
         # if result[1] == num_iters:
-        if result[1] == alpha:
+        # if result[1] == alpha:
             recall.append(result[2]['average_recall'] * recall_multiplier)
             catalog_coverage.append(result[2]['catalog_coverage'])
             num_factors_values.append(result[0])
-    # ax[1].plot(recall, catalog_coverage, marker='o', label=f'Regularization: {regularization}')
+    ax[1].plot(recall, catalog_coverage, marker='o', label=f'Regularization: {regularization}')
     # ax[1].plot(recall, catalog_coverage, marker='o', label=f'Num Iterations: {num_iters}')
-    ax[1].plot(recall, catalog_coverage, marker='o', label=f'Alpha: {alpha}')
+    # ax[1].plot(recall, catalog_coverage, marker='o', label=f'Alpha: {alpha}')
     # Annotate the points with num_factors values
     for i, num_factors_value in enumerate(num_factors_values):
         ax[1].annotate(f'{num_factors_value}', (recall[i], catalog_coverage[i]))
 ax[1].set_xlabel(f'Average Recall@N x {recall_multiplier}')
 ax[1].set_ylabel('Catalog Coverage')
-# ax[1].set_title('Fixed Regularization, Varying Num Factors')
+ax[1].set_title('Fixed Regularization, Varying Num Factors')
 # ax[1].set_title('Fixed Num Iterations, Varying Num Factors')
-ax[1].set_title('Fixed Alpha, Varying Num Factors')
+# ax[1].set_title('Fixed Alpha, Varying Num Factors')
 ax[1].legend()
 
 plt.tight_layout()

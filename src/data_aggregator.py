@@ -127,3 +127,4 @@ if __name__ == "__main__":
     settings = Settings()
     data_aggregator = DataAggregator(settings)
     data_aggregator.aggregate('movielens')
+    data_aggregator.aggregate('bookcrossing')

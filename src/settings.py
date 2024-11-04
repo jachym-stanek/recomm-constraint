@@ -36,19 +36,21 @@ class Settings:
                     'books_file': '../data/bookcrossing_raw/BX-Books.csv',
                     'ratings_file': '../data/bookcrossing_raw/BX-Book-Ratings.csv',
                     'transformed_data_dir': '../data/bookcrossing',
+                    'rating_matrix_file': '../data/bookcrossing/rating_matrix.npz',
                 }
 
             },
             'aggregation_settings': {
                 'movielens': 'explicit_only',  # Options: explicit_only, implicit_only, explicit_and_implicit
-                # Add settings for other datasets
+                'bookcrossing': 'explicit_and_implicit',
             },
             'interaction_weights': {
                 'movielens': {
                     'rating': 1.0,
-                    # Other interaction types can be added if needed
                 },
-                # Add weights for other datasets
+                'bookcrossing': {
+                    'rating': 1.0,
+                }
             },
             'segmentation': {
                 'movielens': {
@@ -56,7 +58,7 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.992,
+                'train_ratio': 0.9,
                 'random_state': 42,
             },
             'candidates': {

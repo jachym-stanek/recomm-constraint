@@ -18,10 +18,16 @@ class Evaluator:
         total_recall = 0.0
         user_count = 0
         total_items_recommended = set()
+        skipped_users = 0
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
             user_relevant_items = np.where(test_dataset.matrix[user].toarray() > 0)[1]
+
+            # if user has too few relevant items, skip
+            if len(user_relevant_items) < 3:
+                skipped_users += 1
+                continue
 
             recalls = []
             not_yet_hidden = set(user_relevant_items)
@@ -55,7 +61,7 @@ class Evaluator:
                 user_count += 1
 
             if user_count % self.log_every == 0:
-                print(f"[Evaluator] Processed {user_count}/{len(test_dataset)} users. Average Recall@{N}: {total_recall / user_count:.4f} Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f}")
+                print(f"[Evaluator] Processed {user_count+skipped_users}/{len(test_dataset)} users. Average Recall@{N}: {total_recall / user_count:.4f} Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f}")
 
         average_recall = total_recall / user_count if user_count > 0 else 0
         print(f"[Evaluator] Average Recall@{N}: {average_recall:.4f}")
