@@ -84,12 +84,10 @@ class DatasetTransformer:
         interactions['interaction_type'] = 'rating'
         interactions['source'] = 'explicit'  # All interactions are explicit for MovieLens
 
-        # # subtract mean
-        interactions['interaction_value'] = interactions['interaction_value'] - 3.0 # interactions['interaction_value'].mean()
         # leave only positive interactions (ratings > 3)
-        # interactions = interactions[interactions['interaction_value'] > 3]
-        # # set all interactions to 1
-        # interactions['interaction_value'] = 1.0
+        interactions = interactions[interactions['interaction_value'] > 3]
+        # set all interactions to 1
+        interactions['interaction_value'] = 1.0
 
         # remove duplicates
         interactions = interactions.drop_duplicates(subset=['user_id', 'item_id'])

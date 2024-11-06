@@ -58,8 +58,8 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.9,
-                'random_state': 42,
+                'train_ratio': 0.992,
+                'random_state': 10,
             },
             'candidates': {
                 'top_n': 1000,

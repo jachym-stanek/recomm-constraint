@@ -18,8 +18,8 @@ def main():
     start_time = time.time()
     settings = Settings()
     data_splitter = DataSplitter(settings)
-    # data_splitter.load_data('movielens')
-    data_splitter.load_data('bookcrossing')
+    data_splitter.load_data('movielens')
+    # data_splitter.load_data('bookcrossing')
     data_splitter.split_data()
     train_dataset= data_splitter.get_train_data()
     test_dataset = data_splitter.get_test_data()
@@ -29,21 +29,21 @@ def main():
 
     # factors = [1, 2, 5, 7, 10, 20, 50, 100, 200, 500]
     factors = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]
-    regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
-    # alphas = [0.1, 0.5, 1.0, 2.0, 5.0]
+    # regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
+    alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
 
     results = []
     for num_factors in factors:
-        for regularization in regularizations:
+        # for regularization in regularizations:
         # for num_iters in num_iterations:
-        # for alpha in alphas:
-            metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regularization, 3)
+        for alpha in alphas:
+            # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regularization, 3)
             # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, num_iters)
-            # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, 3, alpha)
-            results.append((num_factors, regularization, metrics))
+            metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, 3, alpha)
+            # results.append((num_factors, regularization, metrics))
             # results.append((num_factors, num_iters, metrics))
-            # results.append((num_factors, alpha, metrics))
+            results.append((num_factors, alpha, metrics))
 
     # save results to a file
     with open(RESULTS_FILE, 'w') as f:

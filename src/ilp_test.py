@@ -1,5 +1,8 @@
 import random
 import time
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 from algorithms.ILP import ILP
 from segmentation import Segment
@@ -177,7 +180,7 @@ def ILP_time_efficiency(constraint_weight=1.0):
     solver = ILP()
     num_recomms = [5, 10, 20, 50, 100, 200, 500] # N
     num_candidates = [10, 50, 100, 200, 500, 1000] # M
-    num_constraints = [1, 2, 3, 4, 5, 10] # C
+    num_constraints = [1, 2, 3, 4, 5, 8, 10, 15] # C
     num_segments = {10: 2, 50: 10, 100: 10, 200: 20, 500: 50, 1000: 100} # M -> S
     elapsed_times = dict() # (N, M, C) -> elapsed_time
 
@@ -185,7 +188,7 @@ def ILP_time_efficiency(constraint_weight=1.0):
         for M in num_candidates:
             if M < N:
                 continue
-            items = {f'item-{i}': random.uniform(0, 10) for i in range(1, M+1)}
+            items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
             S = num_segments[M]
             segments = segments = [Segment(f'segment{i}', 'prop', *list(items.keys())[i*S:(i+1)*S]) for i in range(S)]
             available_constraints = [
@@ -203,21 +206,14 @@ def ILP_time_efficiency(constraint_weight=1.0):
                                     ]
             for C in num_constraints:
                 constraints = random.choices(available_constraints, k=C)
-                elapsed_time = run_test(f"Test Case ({N}, {M}, {C})", solver, items, segments, constraints, N)
+                elapsed_time = run_test(f"Test Case ({N}, {M}, {C})", solver, items, segments, constraints, N, using_soft_constraints=True)
                 elapsed_times[(N, M, C)] = elapsed_time
 
     plot_results(elapsed_times)
 
 
 def plot_results(results: dict):
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import pandas as pd
-
     num_recomms = [5, 10, 20, 50, 100, 200, 500]  # N
-    num_candidates = [10, 50, 100, 200, 500, 1000]  # M
-    num_constraints = [1, 2, 3, 4, 5, 10]  # C
 
     # Convert the results dictionary into a pandas DataFrame for easier manipulation
     data = []
@@ -240,7 +236,7 @@ def plot_results(results: dict):
             pivot_table,
             annot=True,
             fmt=".4f",
-            cmap='viridis',
+            cmap='viridis_r',
             cbar_kws={'label': 'Elapsed Time (milliseconds)'}
         )
 
@@ -253,8 +249,7 @@ def plot_results(results: dict):
         plt.show()
 
 
-
 if __name__ == "__main__":
-    main()
+    # main()
     # ILP_time_efficiency()
-    # ILP_time_efficiency(constraint_weight=0.9)
+    ILP_time_efficiency(constraint_weight=0.9)

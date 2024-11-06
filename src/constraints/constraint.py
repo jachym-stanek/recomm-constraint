@@ -53,7 +53,7 @@ class MinItemsPerSegmentConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return f"{self.name}(segment_id={self.segment_id}, min_items={self.min_items})"
+        return f"{self.name}(segment_id={self.segment_id}, min_items={self.min_items}, window_size={self.window_size})"
 
 
 class MaxItemsPerSegmentConstraint(Constraint):
@@ -95,7 +95,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return f"{self.name}(segment_id={self.segment_id}, max_items={self.max_items})"
+        return f"{self.name}(segment_id={self.segment_id}, max_items={self.max_items}, window_size={self.window_size})"
 
 class ItemFromSegmentAtPositionConstraint(Constraint):
     def __init__(self, segment_id, position, name="ItemFromSegmentAtPosition", weight=1.0):

@@ -13,17 +13,17 @@ class ILP(Algorithm):
     def __init__(self, name="ILP", description="Integer Linear Programming Solver"):
         super().__init__(name, description)
 
-    def solve(self, items: Dict[str, float], segmentations: List[Segment], constraints: List[Constraint], N: int):
+    def solve(self, items: Dict[str, float], segments: List[Segment], constraints: List[Constraint], N: int):
         start = time.time()
 
-        print(f"[{self.name}] Solving ILP with {len(items)} candidate items, {len(segmentations)} segmentations, {len(constraints)} constraints, count={N}.")
+        print(f"[{self.name}] Solving ILP with {len(items)} candidate items, {len(segments)} segments, {len(constraints)} constraints, count={N}.")
 
         model = Model("RecommenderSystem")
         model.setParam('OutputFlag', 0)  # Suppress Gurobi output
 
         item_ids = list(items.keys())
         positions = list(range(1, N + 1))
-        segments = {seg.id: seg for seg in segmentations}
+        segments_dict = {seg.id: seg for seg in segments}
 
         # Create decision variables x[i,p] for item i at position p
         x = model.addVars(item_ids, positions, vtype=GRB.BINARY, name="x")
@@ -56,7 +56,7 @@ class ILP(Algorithm):
 
         # Process each constraint in the constraints list
         for constraint in constraints:
-            constraint.add_to_model(model, x, items, segments, positions, N, K)
+            constraint.add_to_model(model, x, items, segments_dict, positions, N, K)
 
         # Objective function: Maximize total score - total penalty
         total_score = quicksum(items[i] * x[i, p] for i in item_ids for p in positions)
