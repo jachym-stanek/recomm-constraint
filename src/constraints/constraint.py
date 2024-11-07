@@ -13,17 +13,15 @@ class Constraint:
         raise NotImplementedError("Must implement check_constraint method.")
 
 
-
 class MinItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
-        super().__init__(name, weight)
+        super().__init__(f"{name}_{segment_id}", weight)
         self.segment_id = segment_id
         self.min_items = min_items
         self.window_size = window_size
 
     def add_to_model(self, model, x, items, segments, positions, N, K):
         segment_items = segments[self.segment_id]
-        penalty_vars = []
         for i in range(N - self.window_size + 1):
             window = positions[i:i + self.window_size]
             if self.weight < 1.0:
@@ -58,14 +56,13 @@ class MinItemsPerSegmentConstraint(Constraint):
 
 class MaxItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, max_items, window_size, name="MaxItemsPerSegment", weight=1.0):
-        super().__init__(name, weight)
+        super().__init__(f"{name}_{segment_id}", weight)
         self.segment_id = segment_id
         self.max_items = max_items
         self.window_size = window_size
 
     def add_to_model(self, model, x, items, segments, positions, N, K):
         segment_items = segments[self.segment_id]
-        penalty_vars = []
         for i in range(N - self.window_size + 1):
             window = positions[i:i + self.window_size]
             if self.weight < 1.0:
@@ -97,9 +94,10 @@ class MaxItemsPerSegmentConstraint(Constraint):
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, max_items={self.max_items}, window_size={self.window_size})"
 
+
 class ItemFromSegmentAtPositionConstraint(Constraint):
     def __init__(self, segment_id, position, name="ItemFromSegmentAtPosition", weight=1.0):
-        super().__init__(name, weight)
+        super().__init__(f"{name}_{segment_id}", weight)
         self.segment_id = segment_id
         self.position = position
 
@@ -129,6 +127,7 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, position={self.position})"
 
+
 class ItemAtPositionConstraint(Constraint):
     def __init__(self, item_id, position, name="ItemAtPosition", weight=1.0):
         super().__init__(name, weight)
@@ -157,3 +156,52 @@ class ItemAtPositionConstraint(Constraint):
 
     def __repr__(self):
         return f"{self.name}(item_id={self.item_id}, position={self.position})"
+
+
+"""
+Minimum nuber of items from each segment that belongs to segmentation of target property
+E.g. Final recommendation should contain at least 2 items from every genre
+"""
+class SegmentationMinDiversity(Constraint):
+    def __init__(self, segmentation_property, min_items, weight=1.0, name="SegmentationMinDiversity"):
+        super().__init__(name, weight)
+        self.segmentation_property = segmentation_property
+        self.min_items = min_items
+        self.constraints = [] # List of MinItemsPerSegmentConstraint for each segment with min_items and window_size = N
+
+    def add_to_model(self, model, x, items, segments, positions, N, K):
+        # create MinItemsPerSegmentConstraint for each segment
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, N)
+                self.constraints.append(constraint)
+                constraint.add_to_model(model, x, items, segments, positions, N, K)
+
+    def check_constraint(self, solution, items, segments):
+        return all(constraint.check_constraint(solution, items, segments) for constraint in self.constraints)
+
+    def __repr__(self):
+        return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items})"
+
+
+class SegmentationMaxDiversity(Constraint):
+    def __init__(self, segmentation_property, max_items, weight=1.0, name="SegmentationMaxDiversity"):
+        super().__init__(name, weight)
+        self.segmentation_property = segmentation_property
+        self.max_items = max_items
+        self.constraints = [] # List of MaxItemsPerSegmentConstraint for each segment with max_items and window_size = N
+
+    def add_to_model(self, model, x, items, segments, positions, N, K):
+        # create MaxItemsPerSegmentConstraint for each segment
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, N)
+                self.constraints.append(constraint)
+                constraint.add_to_model(model, x, items, segments, positions, N, K)
+
+    def check_constraint(self, solution, items, segments):
+        return all(constraint.check_constraint(solution, items, segments) for constraint in self.constraints)
+
+    def __repr__(self):
+        return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items})"
+

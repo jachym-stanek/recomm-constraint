@@ -38,7 +38,7 @@ class Evaluator:
                 not_yet_hidden.remove(hidden_item)
                 observed_items = set(user_interaction_vector)
                 observed_items.remove(hidden_item)
-                # create crs matrix as users row from test dataset with hidden item removed
+
                 user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
 
                 # Generate recommendations

@@ -30,6 +30,7 @@ class Settings:
                     'transformed_data_dir': '../data/movielens',
                     'rating_matrix_file': '../data/movielens/rating_matrix.npz',
                     'id_mappings_file': '../data/movielens/movielens_id_mappings.json',
+                    'info_file': '../data/movielens/dataset_info.json',
                 },
                 'bookcrossing': {
                     'users_file': '../data/bookcrossing_raw/BX-Users.csv',
@@ -37,6 +38,7 @@ class Settings:
                     'ratings_file': '../data/bookcrossing_raw/BX-Book-Ratings.csv',
                     'transformed_data_dir': '../data/bookcrossing',
                     'rating_matrix_file': '../data/bookcrossing/rating_matrix.npz',
+                    'info_file': '../data/bookcrossing/dataset_info.json',
                 }
 
             },
@@ -136,3 +138,11 @@ class Settings:
     @property
     def log_every(self):
         return self._config['logging']['log_every']
+
+    @property
+    def items_file(self):
+        return self._config['datasets'][self.dataset_in_use]['transformed_data_dir'] + '/items.csv'
+
+    @property
+    def users_file(self):
+        return self._config['datasets'][self.dataset_in_use]['transformed_data_dir'] + '/users.csv'

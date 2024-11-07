@@ -9,6 +9,7 @@ from src.data_split import DataSplitter
 from src.evaluator import Evaluator
 from src.models import ALSModel
 from src.settings import Settings
+from segmentation import SegmentationExtractor
 
 # results file will have number one higher than the highest number in the existing results files
 RESULTS_FILE = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group(1)) for f in os.listdir('.') if re.match(r'results\d+\.txt', f)] + [0]) + 1) + ".txt"
@@ -32,6 +33,9 @@ def main():
     # regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
     alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
+
+    segmentation_extractor = SegmentationExtractor(settings)
+    segments = segmentation_extractor.extract_segments('genres') # segmens for movielens
 
     results = []
     for num_factors in factors:

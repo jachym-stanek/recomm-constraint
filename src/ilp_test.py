@@ -7,7 +7,7 @@ import pandas as pd
 from algorithms.ILP import ILP
 from segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint
+    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, SegmentationMinDiversity, SegmentationMaxDiversity
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False):
@@ -163,7 +163,7 @@ def main():
 
     # Test Case 7: 100 candidate items for N=10, soft constraints
     N = 10
-    items = {f'item-{i}': random.uniform(0, 10) for i in range(1, 101)}
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
     segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
     constraints = [
         MinItemsPerSegmentConstraint(segment_id=f'segment0', min_items=1, window_size=5, weight=1.0),
@@ -174,6 +174,24 @@ def main():
         MinItemsPerSegmentConstraint(segment_id=f'segment5', min_items=1, window_size=5, weight=0.5),
     ]
     run_test("Test Case 7", solver, items, segments, constraints, N, using_soft_constraints=True)
+
+    # Test Case 8: 100 candidate items for N=10, hard constraints - min diversity
+    N = 10
+    items = {f'item-{i}': max(random.uniform(0, 1) - i*0.01, 0) for i in range(1, 101)} # Decreasing scores to check diversity
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*25:(i+1)*25]) for i in range(4)]
+    constraints = [
+        SegmentationMinDiversity(segmentation_property='test-prop', min_items=2, weight=1.0)
+    ]
+    run_test("Test Case 8", solver, items, segments, constraints, N) # should include 2 items from each segment and maximize score by including items from earlier segments
+
+    # Test Case 9: 100 candidate items for N=10, hard constraints - max diversity
+    N = 10
+    items = {f'item-{i}': max(random.uniform(0, 1) - i*0.01, 0) for i in range(1, 101)} # Decreasing scores to check diversity
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(5)]
+    constraints = [
+        SegmentationMaxDiversity(segmentation_property='test-prop', max_items=2, weight=1.0)
+    ]
+    run_test("Test Case 9", solver, items, segments, constraints, N) # should include 2 items from each segment even if it reduces the total score
 
 
 def ILP_time_efficiency(constraint_weight=1.0):
@@ -250,6 +268,6 @@ def plot_results(results: dict):
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     # ILP_time_efficiency()
-    ILP_time_efficiency(constraint_weight=0.9)
+    # ILP_time_efficiency(constraint_weight=0.9)

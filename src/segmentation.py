@@ -2,7 +2,11 @@
 
 import csv
 import json
+
+from clickhouse_driver.settings.available import settings
 from tqdm import tqdm
+
+from src.settings import Settings
 
 
 class Segment(set):
@@ -12,7 +16,7 @@ class Segment(set):
         self.segmentation_property = segmentation_property
 
     def __repr__(self):
-        return (f"Segmentation[segment id='{self.segment_id}', "
+        return (f"Segment[segment id='{self.segment_id}', "
                 f"segmentation property='{self.segmentation_property}', "
                 f"num elements={len(self)}]")
 
@@ -26,18 +30,18 @@ class Segment(set):
 
 
 class SegmentationExtractor:
-    def __init__(self, dataset_info_path, items_file_path):
+    def __init__(self, settings: Settings):
         self.segments = None
 
         # Load dataset information
-        with open(dataset_info_path, 'r') as f:
+        with open(settings.dataset["info_file"], 'r') as f:
             self.dataset_info = json.load(f)
 
         # Get item properties that can be segmented
         self.item_properties = self.dataset_info.get('item_properties', [])
 
         # Load items data from the CSV file
-        self.items = self._load_items(items_file_path)
+        self.items = self._load_items(settings.items_file)
 
     def _load_items(self, items_file_path):
         items = []
@@ -98,10 +102,9 @@ class SegmentationExtractor:
 
 if __name__ == "__main__":
     # Usage Example
-    dataset_info_path = '../data/movielens/dataset_info.json'
-    items_file_path = '../data/movielens/items.csv'
+    settings = Settings()
 
-    extractor = SegmentationExtractor(dataset_info_path, items_file_path)
+    extractor = SegmentationExtractor(settings)
     segments = extractor.extract_segments('genres')
 
     for segment in segments:
