@@ -15,6 +15,7 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
     start_time = time.time()
     segments_id_dict = {seg.id: seg for seg in segments}
     recommended_items = solver.solve(items, segments, constraints, N)
+    print(f"Recommended Items: {recommended_items}")
 
     # Check constraints
     if recommended_items:
@@ -268,6 +269,12 @@ def plot_results(results: dict):
 
 
 if __name__ == "__main__":
-    main()
+    # main()
     # ILP_time_efficiency()
-    # ILP_time_efficiency(constraint_weight=0.9)
+    ILP_time_efficiency(constraint_weight=0.9)
+
+# Datasety na vyzkouseni:
+# pridat bm25 normalizaci, vyzkouset na novych datasetech
+# temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi
+# dobre vyplnene kategorie
+# zkusit preprocessing dat pro ILP

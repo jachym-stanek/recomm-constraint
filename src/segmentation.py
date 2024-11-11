@@ -37,15 +37,17 @@ class SegmentationExtractor:
         with open(settings.dataset["info_file"], 'r') as f:
             self.dataset_info = json.load(f)
 
-        # Get item properties that can be segmented
         self.item_properties = self.dataset_info.get('item_properties', [])
-
-        # Load items data from the CSV file
         self.items = self._load_items(settings.items_file)
+        self.item_mapping = self._load_item_mapping(settings.item_mapping_file)
+
+    def _load_item_mapping(self, item_mapping_file_path):
+        with open(item_mapping_file_path, 'r') as f:
+            item_mapping = json.load(f)
+        return item_mapping['item_idx_mapping']
 
     def _load_items(self, items_file_path):
         items = []
-        # Try to automatically detect the delimiter
         with open(items_file_path, 'r') as f:
             # Peek at the first line to check for delimiter type
             sample_line = f.readline()
@@ -86,6 +88,8 @@ class SegmentationExtractor:
 
         # Return a list of Segmentation objects
         self.segments = list(segments.values())
+
+    def get_segments(self):
         return self.segments
 
     def get_segments_for_recomms(self, recomms):
@@ -93,14 +97,16 @@ class SegmentationExtractor:
         for segment in self.segments:
             segment_items = []
             for item in recomms:
-                if item in segment:
+                item_id = self.item_mapping.get(str(item))
+                if str(item_id) in segment:
                     segment_items.append(item)
             if len(segment_items) > 0:
+                # create new segment with only the items that are in the recommendations and using item rating matrix index instead of item id
                 recomms_segments.append(Segment(segment.segment_id, segment.segmentation_property, *segment_items))
         return recomms_segments
 
 
-if __name__ == "__main__":
+def test_segmentation_extractor():
     # Usage Example
     settings = Settings()
 
@@ -109,3 +115,16 @@ if __name__ == "__main__":
 
     for segment in segments:
         print(segment)
+
+    # test get_segments_for_recomms
+    print("Testing get_segments_for_recomms")
+    recomms = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    recomms_segments = extractor.get_segments_for_recomms(recomms)
+    for segment in recomms_segments:
+        print(segment)
+        print(list(segment))
+    assert len(recomms_segments) > 0
+
+
+if __name__ == "__main__":
+    test_segmentation_extractor()

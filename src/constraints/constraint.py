@@ -173,7 +173,7 @@ class SegmentationMinDiversity(Constraint):
         # create MinItemsPerSegmentConstraint for each segment
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
-                constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, N)
+                constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, N, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_model(model, x, items, segments, positions, N, K)
 
@@ -195,7 +195,7 @@ class SegmentationMaxDiversity(Constraint):
         # create MaxItemsPerSegmentConstraint for each segment
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
-                constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, N)
+                constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, N, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_model(model, x, items, segments, positions, N, K)
 

@@ -60,7 +60,7 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.992,
+                'train_ratio': 0.9978,
                 'random_state': 10,
             },
             'candidates': {
@@ -146,3 +146,7 @@ class Settings:
     @property
     def users_file(self):
         return self._config['datasets'][self.dataset_in_use]['transformed_data_dir'] + '/users.csv'
+
+    @property
+    def item_mapping_file(self):
+        return self._config['datasets'][self.dataset_in_use]['transformed_data_dir'] + f"/{self.dataset_in_use}_item_id_mappings.json"

@@ -89,6 +89,9 @@ class DatasetTransformer:
         # set all interactions to 1
         interactions['interaction_value'] = 1.0
 
+        # print average amount of interactions per user
+        print(f"[DatasetTransformer] Average amount of interactions per user: {interactions.groupby('user_id').size().mean()}")
+
         # remove duplicates
         interactions = interactions.drop_duplicates(subset=['user_id', 'item_id'])
         interactions_file = os.path.join(transformed_data_dir, 'interactions.csv')

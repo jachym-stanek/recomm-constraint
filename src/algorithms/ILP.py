@@ -10,13 +10,14 @@ from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint,
 
 
 class ILP(Algorithm):
-    def __init__(self, name="ILP", description="Integer Linear Programming Solver"):
-        super().__init__(name, description)
+    def __init__(self, name="ILP", description="Integer Linear Programming Solver", verbose=True):
+        super().__init__(name, description, verbose)
 
     def solve(self, items: Dict[str, float], segments: List[Segment], constraints: List[Constraint], N: int):
         start = time.time()
 
-        print(f"[{self.name}] Solving ILP with {len(items)} candidate items, {len(segments)} segments, {len(constraints)} constraints, count={N}.")
+        if self.verbose:
+            print(f"[{self.name}] Solving ILP with {len(items)} candidate items, {len(segments)} segments, {len(constraints)} constraints, count={N}.")
 
         model = Model("RecommenderSystem")
         model.setParam('OutputFlag', 0)  # Suppress Gurobi output
@@ -77,10 +78,12 @@ class ILP(Algorithm):
                         solution[p] = i  # Map position to item
             # Return the recommended items sorted by position
             result = {k: solution[k] for k in sorted(solution)}
-        else:
+        elif self.verbose:
             print(f"[{self.name}] No optimal solution found.")
 
         end = time.time()
-        print(f"[{self.name}] Finished in {(end - start) * 1000:.2f} ms")
+
+        if self.verbose:
+            print(f"[{self.name}] Finished in {(end - start) * 1000:.2f} ms")
 
         return result

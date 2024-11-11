@@ -56,6 +56,9 @@ class DataAggregator:
         # Create ID mappings
         self.user_id_mapping = {user_id: idx for idx, user_id in enumerate(self.users['user_id'])}
         self.item_id_mapping = {item_id: idx for idx, item_id in enumerate(self.items['item_id'])}
+        self.item_idx_mapping = {idx: item_id for item_id, idx in self.item_id_mapping.items()}
+        # print first 5 items in the index mapping
+        print(list(self.item_idx_mapping.items())[:5])
 
     def apply_interaction_weights(self, interaction_weights, aggregation_setting):
         print("[DataAggregator] Applying interaction weights...")
@@ -119,6 +122,15 @@ class DataAggregator:
         }
         with open(mappings_file, 'w') as f:
             json.dump(id_mappings, f)
+
+        # save item id mappings
+        item_mappings_file = os.path.join(self.settings.dataset.get('transformed_data_dir'), f"{dataset_name}_item_id_mappings.json")
+        item_id_mappings = {
+            'item_id_mapping': self.item_id_mapping,
+            'item_idx_mapping': self.item_idx_mapping
+        }
+        with open(item_mappings_file, 'w') as f:
+            json.dump(item_id_mappings, f)
 
         print(f"[DataAggregator] Rating matrix and ID mappings saved to '{self.settings.dataset.get('transformed_data_dir')}'.")
 

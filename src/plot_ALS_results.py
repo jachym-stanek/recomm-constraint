@@ -1,105 +1,123 @@
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 # factors = [50, 100, 200, 500]
 # regularizations = [0.001, 0.005, 0.01, 0.5]
 # factors = [1, 2, 5, 10, 20, 50, 100, 200, 500]
 # num_iterations = [1, 2, 3, 5, 8, 10, 15]
-factors = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]
+# factors = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]
 # regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
-alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
+# alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
+factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25]
+regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
 
-# results = [
-#     (50, 0.001, {'average_recall': 0.006570397111913353, 'catalog_coverage': 0.039775643375614046}),
-#     (50, 0.005, {'average_recall': 0.006534296028880859, 'catalog_coverage': 0.03988562211305814}),
-#     (50, 0.01, {'average_recall': 0.0063176895306859115, 'catalog_coverage': 0.04028887748368649}),
-#     (50, 0.5, {'average_recall': 0.006389891696750897, 'catalog_coverage': 0.03959234547987389}),
-#     (100, 0.001, {'average_recall': 0.0051263537906137075, 'catalog_coverage': 0.046960920888628195}),
-#     (100, 0.005, {'average_recall': 0.005776173285198542, 'catalog_coverage': 0.04703424004692426}),
-#     (100, 0.01, {'average_recall': 0.005523465703971106, 'catalog_coverage': 0.046887601730332136}),
-#     (100, 0.5, {'average_recall': 0.005992779783393491, 'catalog_coverage': 0.04758413373414473}),
-#     (200, 0.001, {'average_recall': 0.0056317689530685795, 'catalog_coverage': 0.05557592198841557}),
-#     (200, 0.005, {'average_recall': 0.0056317689530685795, 'catalog_coverage': 0.05616247525478407}),
-#     (200, 0.01, {'average_recall': 0.005234657039711179, 'catalog_coverage': 0.05550260283011951}),
-#     (200, 0.5, {'average_recall': 0.005379061371841142, 'catalog_coverage': 0.05524598577608329}),
-#     (500, 0.001, {'average_recall': 0.004981949458483744, 'catalog_coverage': 0.07643522252364543}),
-#     (500, 0.005, {'average_recall': 0.0048014440433212895, 'catalog_coverage': 0.07610528631131315}),
-#     (500, 0.01, {'average_recall': 0.005884476534296016, 'catalog_coverage': 0.07661852041938559}),
-#     (500, 0.5, {'average_recall': 0.005487364620938616, 'catalog_coverage': 0.0763985629444974})
-# ]
-results = [
-]
-with open('results34.txt', 'r') as f:
+PLOT_CONSTRAINED = True
+
+results = []
+with open('results7.txt', 'r') as f:
     for line in f:
         # num_factors, num_iters, metrics = eval(line)
-        num_factors, alpha , metrics = eval(line)
-        # num_factors, regularization, metrics = eval(line)
+        # num_factors, alpha , metrics = eval(line)
+        num_factors, regularization, metrics = eval(line)
         # results.append((num_factors, num_iters, metrics))
-        # results.append((num_factors, regularization, metrics))
-        results.append((num_factors, alpha, metrics))
+        results.append((num_factors, regularization, metrics))
+        # results.append((num_factors, alpha, metrics))
 print(results)
 
-
-# Multiply recall values to spread them out
-recall_multiplier = 1
 
 # Plot results - recall on x-axis, catalog coverage on y-axis
 fig, ax = plt.subplots(1, 2, figsize=(14, 6))
 
-# First plot: fixed num_factors, varying regularization
+# First plot: fixed num_factors, varying alpha
 for num_factors in factors:
     recall = []
     catalog_coverage = []
-    # regularization_values = []
-    # num_iters_values = []
-    alpha_values = []
+    recall_constrained = []
+    catalog_coverage_constrained = []
+    # alpha_values = []
+    regularization_values = []
     for result in results:
         if result[0] == num_factors:
-            recall.append(result[2]['average_recall'] * recall_multiplier)
+            recall.append(result[2]['average_recall'])
             catalog_coverage.append(result[2]['catalog_coverage'])
-            # regularization_values.append(result[1])
-            # num_iters_values.append(result[1])
-            alpha_values.append(result[1])
-    ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {num_factors}')
-    # Annotate the points with regularization values
-    # for i, reg_value in enumerate(regularization_values):
-    # for i, num_iters_value in enumerate(num_iters_values):
-    for i, alpha_value in enumerate(alpha_values):
-        # ax[0].annotate(f'{reg_value}', (recall[i], catalog_coverage[i]))
-        # ax[0].annotate(f'{num_iters_value}', (recall[i], catalog_coverage[i]))
-        ax[0].annotate(f'{alpha_value}', (recall[i], catalog_coverage[i]))
-ax[0].set_xlabel(f'Average Recall@N x {recall_multiplier}')
+            recall_constrained.append(result[2]['average_recall_constrained'])
+            catalog_coverage_constrained.append(result[2]['catalog_coverage_constrained'])
+            # alpha_values.append(result[1])
+            regularization_values.append(result[1])
+    # Plot unconstrained metrics
+    line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {num_factors}')
+    # Plot constrained metrics with same color, dotted line
+    if PLOT_CONSTRAINED:
+        ax[0].plot(recall_constrained, catalog_coverage_constrained, linestyle='dotted', color=line.get_color())
+    # Annotate the points with alpha values for unconstrained
+    # for i, alpha_value in enumerate(alpha_values):
+    #     ax[0].annotate(f'{alpha_value}', (recall[i], catalog_coverage[i]))
+    for i, regularization_value in enumerate(regularization_values):
+        ax[0].annotate(f'{regularization_value}', (recall[i], catalog_coverage[i]))
+    # Annotate the points with alpha values for constrained
+    if PLOT_CONSTRAINED:
+        # for i, alpha_value in enumerate(alpha_values):
+        #     ax[0].annotate(f'{alpha_value}', (recall_constrained[i], catalog_coverage_constrained[i]))
+        for i, regularization_value in enumerate(regularization_values):
+            ax[0].annotate(f'{regularization_value}', (recall_constrained[i], catalog_coverage_constrained[i]))
+ax[0].set_xlabel(f'Average Recall@N')
 ax[0].set_ylabel('Catalog Coverage')
-# ax[0].set_title('Fixed Num Factors, Varying Regularization')
-ax[0].set_title('Fixed Num Factors, Varying Alpha')
-# ax[0].set_title('Fixed Num Factors, Varying Num Iterations')
-ax[0].legend()
+# ax[0].set_title('Fixed Num Factors, Varying Alpha')
+ax[0].set_title('Fixed Num Factors, Varying Regularization')
 
-# Second plot: fixed regularization, varying num_factors
-# for regularization in regularizations:
-# for num_iters in num_iterations:
-for alpha in alphas:
+# Create custom legend entries for unconstrained and constrained
+handles, labels = ax[0].get_legend_handles_labels()
+line_unconstrained = Line2D([0], [0], color='black', linestyle='-')
+if PLOT_CONSTRAINED:
+    line_constrained = Line2D([0], [0], color='black', linestyle='dotted')
+    ax[0].legend(handles + [line_unconstrained, line_constrained],
+                 labels + ['Unconstrained', 'Constrained'])
+else:
+    ax[0].legend(handles + [line_unconstrained], labels + ['Unconstrained'])
+
+# Second plot: fixed alpha, varying num_factors
+# for alpha in alphas:
+for regularization in regularizations:
     recall = []
     catalog_coverage = []
+    recall_constrained = []
+    catalog_coverage_constrained = []
     num_factors_values = []
     for result in results:
-        # if result[1] == regularization:
-        # if result[1] == num_iters:
-        if result[1] == alpha:
-            recall.append(result[2]['average_recall'] * recall_multiplier)
+        # if result[1] == alpha:
+        if result[1] == regularization:
+            recall.append(result[2]['average_recall'] )
             catalog_coverage.append(result[2]['catalog_coverage'])
+            recall_constrained.append(result[2]['average_recall_constrained'])
+            catalog_coverage_constrained.append(result[2]['catalog_coverage_constrained'])
             num_factors_values.append(result[0])
-    # ax[1].plot(recall, catalog_coverage, marker='o', label=f'Regularization: {regularization}')
-    # ax[1].plot(recall, catalog_coverage, marker='o', label=f'Num Iterations: {num_iters}')
-    ax[1].plot(recall, catalog_coverage, marker='o', label=f'Alpha: {alpha}')
+    # Plot unconstrained metrics
+    # line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'Alpha: {alpha}')
+    line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'Regularization: {regularization}')
+    # Plot constrained metrics with same color, dotted line
+    if PLOT_CONSTRAINED:
+        ax[1].plot(recall_constrained, catalog_coverage_constrained, linestyle='dotted', color=line.get_color())
     # Annotate the points with num_factors values
     for i, num_factors_value in enumerate(num_factors_values):
         ax[1].annotate(f'{num_factors_value}', (recall[i], catalog_coverage[i]))
-ax[1].set_xlabel(f'Average Recall@N x {recall_multiplier}')
+    # Annotate the points with num_factors values for constrained
+    if PLOT_CONSTRAINED:
+        for i, num_factors_value in enumerate(num_factors_values):
+            ax[1].annotate(f'{num_factors_value}', (recall_constrained[i], catalog_coverage_constrained[i]))
+ax[1].set_xlabel(f'Average Recall@N')
 ax[1].set_ylabel('Catalog Coverage')
-# ax[1].set_title('Fixed Regularization, Varying Num Factors')
-# ax[1].set_title('Fixed Num Iterations, Varying Num Factors')
-ax[1].set_title('Fixed Alpha, Varying Num Factors')
-ax[1].legend()
+# ax[1].set_title('Fixed Alpha, Varying Num Factors')
+ax[1].set_title('Fixed Regularization, Varying Num Factors')
+
+# Create custom legend entries for unconstrained and constrained
+handles, labels = ax[1].get_legend_handles_labels()
+line_unconstrained = Line2D([0], [0], color='black', linestyle='-')
+if PLOT_CONSTRAINED:
+    line_constrained = Line2D([0], [0], color='black', linestyle='dotted')
+    ax[1].legend(handles + [line_unconstrained, line_constrained],
+                 labels + ['Unconstrained', 'Constrained'])
+else:
+    ax[1].legend(handles + [line_unconstrained], labels + ['Unconstrained'])
 
 plt.tight_layout()
 plt.show()

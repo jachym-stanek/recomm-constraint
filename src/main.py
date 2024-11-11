@@ -12,8 +12,7 @@ from src.settings import Settings
 from segmentation import SegmentationExtractor
 
 # results file will have number one higher than the highest number in the existing results files
-RESULTS_FILE = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group(1)) for f in os.listdir('.') if re.match(r'results\d+\.txt', f)] + [0]) + 1) + ".txt"
-
+RESULTS_FILE_ALS = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group(1)) for f in os.listdir('.') if re.match(r'results\d+\.txt', f)] + [0]) + 1) + ".txt"
 
 def main():
     start_time = time.time()
@@ -29,28 +28,29 @@ def main():
     print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset)}")
 
     # factors = [1, 2, 5, 7, 10, 20, 50, 100, 200, 500]
-    factors = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]
-    # regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
-    alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
+    factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25]
+    regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
+    # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
 
     segmentation_extractor = SegmentationExtractor(settings)
-    segments = segmentation_extractor.extract_segments('genres') # segmens for movielens
+    segmentation_extractor.extract_segments('genres') # segmens for movielens
 
     results = []
     for num_factors in factors:
-        # for regularization in regularizations:
+        for regularization in regularizations:
         # for num_iters in num_iterations:
-        for alpha in alphas:
-            # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regularization, 3)
+        # for alpha in alphas:
+            metrics = run_experiment_ILP(settings, train_dataset, test_dataset, segmentation_extractor, num_factors, regularization, 3, 1.0)
             # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, num_iters)
-            metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, 3, alpha)
-            # results.append((num_factors, regularization, metrics))
+            # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, 3, alpha)
+            # metrics = run_experiment_ILP(settings, train_dataset, test_dataset, segmentation_extractor, num_factors, 0.01, 3, alpha)
+            results.append((num_factors, regularization, metrics))
             # results.append((num_factors, num_iters, metrics))
-            results.append((num_factors, alpha, metrics))
+            # results.append((num_factors, alpha, metrics))
 
     # save results to a file
-    with open(RESULTS_FILE, 'w') as f:
+    with open(RESULTS_FILE_ALS, 'w') as f:
         for result in results:
             f.write(f'{result}\n')
 
@@ -61,7 +61,7 @@ def run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regul
 
     start_time = time.time()
 
-    with open(RESULTS_FILE, 'a') as f:
+    with open(RESULTS_FILE_ALS, 'a') as f:
         f.write(f'Running ALS experiment with num_factors={num_factors}, regularization={regularization}, number of iterations: {num_iters} ...\n')
 
     model = ALSModel(num_factors=num_factors, regularization=regularization, num_iterations=num_iters, alpha=alpha, use_gpu=settings.use_gpu)
@@ -79,12 +79,39 @@ def run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, regul
     )
     # metrics = evaluator.evaluate_recall_at_n_batch(train_dataset, test_dataset, model, N=settings.recommendations['top_n'])
     print(f"[ExperimentRunner] Evaluation Metrics: {metrics}, processing time: {time.time() - start_time:.2f} seconds.")
-    with open(RESULTS_FILE, 'a') as f:
+    with open(RESULTS_FILE_ALS, 'a') as f:
+        f.write(f'Evaluation Metrics: {metrics}\n')
+
+    return metrics
+
+
+def run_experiment_ILP(settings, train_dataset, test_dataset, segmentation_extractor, num_factors, regularization, num_iters, alpha=1.0):
+    print(
+        f"[ExperimentRunner] Running experiment with num_factors={num_factors}, regularization={regularization}, number of iterations: {num_iters}, alpha: {alpha} ...")
+
+    start_time = time.time()
+
+    with open(RESULTS_FILE_ALS, 'a') as f:
+        f.write(
+            f'Running experiment with num_factors={num_factors}, regularization={regularization}, number of iterations: {num_iters}, alpha: {alpha} ....\n')
+
+    model = ALSModel(num_factors=num_factors, regularization=regularization, num_iterations=num_iters, alpha=alpha,
+                     use_gpu=settings.use_gpu)
+    model.train(train_dataset)
+
+    print(f"[ExperimentRunner] Training completed in {time.time() - start_time:.2f} seconds.")
+
+    # Evaluate the model
+    evaluator = Evaluator(settings)
+    metrics = evaluator.evaluate_constrained_model(train_dataset=train_dataset, test_dataset=test_dataset,
+                                                   segmentation_extractor=segmentation_extractor, model=model, N=settings.recommendations['top_n'])
+    print(f"[ExperimentRunner] Evaluation Metrics: {metrics}, processing time: {time.time() - start_time:.2f} seconds.")
+    with open(RESULTS_FILE_ALS, 'a') as f:
         f.write(f'Evaluation Metrics: {metrics}\n')
 
     return metrics
 
 
 if __name__ == "__main__":
-    print(f"[ExperimentRunner] Using file '{RESULTS_FILE}' to save results.")
+    print(f"[ExperimentRunner] Using file '{RESULTS_FILE_ALS}' to save results.")
     main()

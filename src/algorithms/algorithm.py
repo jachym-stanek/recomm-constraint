@@ -4,9 +4,10 @@ from src.constraints.constraint import Constraint
 
 
 class Algorithm:
-    def __init__(self, name, description):
+    def __init__(self, name, description, verbose=False):
         self.name = name
         self.description = description
+        self.verbose = verbose
 
     def solve(self, items: Dict[str, float],
               segmentations: List[Segment],
