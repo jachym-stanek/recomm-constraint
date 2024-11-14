@@ -1,4 +1,8 @@
+from typing import Dict, List, Set
+
 from gurobipy import Model, GRB, quicksum
+
+from src.segmentation import Segment
 
 
 class Constraint:

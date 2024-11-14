@@ -229,6 +229,7 @@ def ILP_time_efficiency(constraint_weight=1.0):
                 elapsed_times[(N, M, C)] = elapsed_time
 
     plot_results(elapsed_times)
+    plot_results_one_graph(elapsed_times)
 
 
 def plot_results(results: dict):
@@ -266,6 +267,27 @@ def plot_results(results: dict):
 
         plt.tight_layout()
         plt.show()
+
+
+# plot results NxM on x-axis, C=5, time on y-axis
+def plot_results_one_graph(results: dict):
+    # process reslults
+    NM = []
+    time = []
+    for (N, M, C), elapsed_time in results.items():
+        if C == 5:
+            NM.append(N*M)
+            time.append(elapsed_time)
+
+    # plot
+    plt.figure(figsize=(10, 8))
+    plt.plot(NM, time, marker='o')
+    plt.xlabel('N*M')
+    plt.ylabel('Elapsed Time (milliseconds)')
+    plt.title('ILP Time Efficiency')
+    plt.tight_layout()
+    plt.show()
+
 
 
 if __name__ == "__main__":

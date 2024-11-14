@@ -87,3 +87,18 @@ class ILP(Algorithm):
             print(f"[{self.name}] Finished in {(end - start) * 1000:.2f} ms")
 
         return result
+
+
+    """
+    Filter the number of candidates in order to reduce the number of ILP variables
+    
+    for every max_items constraint:
+        Take only the top max_items items from the segment  TODO: invent a way to handle for overlapping segments
+    for remaining items:
+        sort by score
+        take top N items
+        keep taking until all min_items constraints have enough items
+    
+    """
+    def preprocess_candidates(self, items: Dict[str, float], segments: List[Segment], constraints: List[Constraint], N: int):
+

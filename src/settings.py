@@ -60,7 +60,7 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.9978,
+                'train_ratio': 0.999,
                 'random_state': 10,
             },
             'candidates': {
@@ -73,9 +73,25 @@ class Settings:
                 'top_n': 10,
                 'num_hidden': 20,
             },
-            'use_gpu': True,
+            'use_gpu': False,
             'logging': {
                 'log_every': 10,
+            },
+            'bm25': {
+                'movielens': {
+                    'enabled': True,
+                    'K1': 100,
+                    'B': 0.8,
+                },
+                'bookcrossing': {
+                    'enabled': True,
+                    'K1': 100,
+                    'B': 0.8,
+                }
+            },
+            'nearest_neighbors': {
+                'movielens': 5,
+                'bookcrossing': 5,
             },
         }
 
@@ -94,7 +110,6 @@ class Settings:
                 source[key] = value
 
     # Properties to access settings
-
     @property
     def dataset(self):
         return self._config['datasets'][self.dataset_in_use]
@@ -150,3 +165,11 @@ class Settings:
     @property
     def item_mapping_file(self):
         return self._config['datasets'][self.dataset_in_use]['transformed_data_dir'] + f"/{self.dataset_in_use}_item_id_mappings.json"
+
+    @property
+    def bm25(self):
+        return self._config['bm25'][self.dataset_in_use]
+
+    @property
+    def nearest_neighbors(self):
+        return self._config['nearest_neighbors'][self.dataset_in_use]

@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 from scipy.sparse import csr_matrix, save_npz
+from implicit.nearest_neighbours import bm25_weight
 import os
 import json
 import time
@@ -57,8 +58,6 @@ class DataAggregator:
         self.user_id_mapping = {user_id: idx for idx, user_id in enumerate(self.users['user_id'])}
         self.item_id_mapping = {item_id: idx for idx, item_id in enumerate(self.items['item_id'])}
         self.item_idx_mapping = {idx: item_id for item_id, idx in self.item_id_mapping.items()}
-        # print first 5 items in the index mapping
-        print(list(self.item_idx_mapping.items())[:5])
 
     def apply_interaction_weights(self, interaction_weights, aggregation_setting):
         print("[DataAggregator] Applying interaction weights...")
@@ -99,7 +98,11 @@ class DataAggregator:
         col_indices = aggregated['item_idx'].values
         data = aggregated['weighted_value'].values
 
+        # create csr matrix and apply bm25 weighting
         self.rating_matrix = csr_matrix((data, (row_indices, col_indices)), shape=(num_users, num_items))
+        if self.settings.bm25['enabled']:
+            print("[DataAggregator] Applying BM25 weighting...")
+            self.rating_matrix = bm25_weight(self.rating_matrix, K1=self.settings.bm25['K1'], B=self.settings.bm25['B']).tocsr()
 
         # Log rating matrix info
         num_nonzero = self.rating_matrix.nnz

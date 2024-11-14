@@ -8,13 +8,16 @@ from matplotlib.lines import Line2D
 # factors = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20]
 # regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5]
 # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
-factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25]
-regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
+# factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25]
+# regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
+factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+# regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+regularizations = [0.01, 0.1, 1.0, 10.0, 100.0]
 
-PLOT_CONSTRAINED = True
+PLOT_CONSTRAINED = False
 
 results = []
-with open('results7.txt', 'r') as f:
+with open('results_factors_vs_reg_new.txt', 'r') as f:
     for line in f:
         # num_factors, num_iters, metrics = eval(line)
         # num_factors, alpha , metrics = eval(line)
@@ -37,11 +40,12 @@ for num_factors in factors:
     # alpha_values = []
     regularization_values = []
     for result in results:
-        if result[0] == num_factors:
+        if result[0] == num_factors and result[2]['average_recall'] > 0.0:
             recall.append(result[2]['average_recall'])
             catalog_coverage.append(result[2]['catalog_coverage'])
-            recall_constrained.append(result[2]['average_recall_constrained'])
-            catalog_coverage_constrained.append(result[2]['catalog_coverage_constrained'])
+            if PLOT_CONSTRAINED:
+                recall_constrained.append(result[2]['average_recall_constrained'])
+                catalog_coverage_constrained.append(result[2]['catalog_coverage_constrained'])
             # alpha_values.append(result[1])
             regularization_values.append(result[1])
     # Plot unconstrained metrics
@@ -73,7 +77,7 @@ if PLOT_CONSTRAINED:
     ax[0].legend(handles + [line_unconstrained, line_constrained],
                  labels + ['Unconstrained', 'Constrained'])
 else:
-    ax[0].legend(handles + [line_unconstrained], labels + ['Unconstrained'])
+    ax[0].legend(handles, labels)
 
 # Second plot: fixed alpha, varying num_factors
 # for alpha in alphas:
@@ -85,11 +89,12 @@ for regularization in regularizations:
     num_factors_values = []
     for result in results:
         # if result[1] == alpha:
-        if result[1] == regularization:
+        if result[1] == regularization and result[2]['average_recall'] > 0.0:
             recall.append(result[2]['average_recall'] )
             catalog_coverage.append(result[2]['catalog_coverage'])
-            recall_constrained.append(result[2]['average_recall_constrained'])
-            catalog_coverage_constrained.append(result[2]['catalog_coverage_constrained'])
+            if PLOT_CONSTRAINED:
+                recall_constrained.append(result[2]['average_recall_constrained'])
+                catalog_coverage_constrained.append(result[2]['catalog_coverage_constrained'])
             num_factors_values.append(result[0])
     # Plot unconstrained metrics
     # line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'Alpha: {alpha}')
@@ -117,7 +122,7 @@ if PLOT_CONSTRAINED:
     ax[1].legend(handles + [line_unconstrained, line_constrained],
                  labels + ['Unconstrained', 'Constrained'])
 else:
-    ax[1].legend(handles + [line_unconstrained], labels + ['Unconstrained'])
+    ax[1].legend(handles, labels)
 
 plt.tight_layout()
 plt.show()

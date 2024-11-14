@@ -16,12 +16,14 @@ class Evaluator:
         self.log_every = settings.log_every
         self.num_hidden = settings.recommendations['num_hidden'] # how many hidden items to evaluate recall@N per user
 
-    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
+    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, K=5, N=10):
         print(f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall = 0.0
         user_count = 0
         total_items_recommended = set()
         skipped_users = 0
+
+        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors, K)
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
@@ -47,7 +49,7 @@ class Evaluator:
                 # Generate recommendations
                 # print(f"obsrvation vector: {user_observation}")
                 # print(f"[Evaluator] User {user}, Dims of user obs: {user_observation.shape}, Observations: {observed_items}")
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N, cold_start=True)
+                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, K=K, precomputed_similarities=precomputed_similarities, cold_start=True)
                 # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms}")
                 # print values of recommeded items in the user observation
                 # print(f"recommended items: {user_observation[0, recomms].toarray()}")
@@ -121,7 +123,7 @@ class Evaluator:
                 user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
 
                 # Generate recommendations
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N*10, cold_start=True)
+                recomms, scores = model.recommend(user, user_observation, list(observed_items), N*10,  cold_start=False)
 
                 # select 10 items with the highest scores
                 recomms_no_constraints = recomms[:10]

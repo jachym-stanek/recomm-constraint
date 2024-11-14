@@ -8,13 +8,12 @@ from scipy.sparse.linalg import svds
 from implicit.als import AlternatingLeastSquares
 
 from src.dataset import Dataset
+from src.algorithms.ItemKnn import ItemKnn
 
 
 class BaseModel:
     def __init__(self):
-        self.user_factors = None
-        self.item_factors = None
-        self.train_rating_matrix = None
+        pass
 
     def train(self, rating_matrix):
         pass
@@ -43,13 +42,15 @@ class BaseModel:
 
 
 class ALSModel(BaseModel):
-    def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0, use_gpu=False):
+    def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0, use_gpu=False, nearest_neighbors=5):
         super().__init__()
         self.num_factors = num_factors
         self.num_iterations = num_iterations
         self.regularization = regularization
         self.alpha = alpha  # Confidence scaling factor
         self.use_gpu = use_gpu
+
+        self.item_knn = ItemKnn(K=nearest_neighbors)
 
     def train(self, train_dataset: Dataset):
         print("[ALSModel] Training ALS model using implicit library...")
@@ -71,8 +72,15 @@ class ALSModel(BaseModel):
         # Train the model
         self.model.fit(rating_matrix * self.alpha)
 
-    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, cold_start: bool = True):
-        if cold_start:
+    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, K: int, test_user: bool = True,
+                  cold_start: bool = False, precomputed_similarities=None):
+        if test_user:
+            # Test user: Find similar items using item-based k-NN
+            if precomputed_similarities is not None:
+                recommended = self.item_knn.nearest_neighbors_precomputed(observed_items, precomputed_similarities, N, K)
+            else:
+                recommended = self.item_knn.nearest_neighbors(observed_items, self.model.item_factors, N, K)
+        elif cold_start:
             # Cold-start user: Recalculate user factors based on observed items
             # Generate recommendations using the recalculated user
             recommended = self.model.recommend(
@@ -94,12 +102,6 @@ class ALSModel(BaseModel):
 
         return recommended
 
-    # only implemented for cold start
-    def recommend_batch(self, users: list, user_observation: csr_matrix, observed_items: np.array, N: int):
-        return self.model.recommend(
-            userid=users,  # passed to keep the number of returned items consistent
-            user_items=user_observation,
-            N=N,
-            filter_items=observed_items,
-            recalculate_user=True
-        )
+    @property
+    def item_factors(self):
+        return self.model.item_factors
