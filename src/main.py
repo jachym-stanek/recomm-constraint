@@ -28,9 +28,9 @@ def main():
     print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset)}")
 
     # factors = [1, 2, 5, 7, 10, 20, 50, 100, 200, 500]
-    factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+    # factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
     regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
-    # num_nearest_neighbors = [2, 4, 5, 6, 8, 10, 15, 20, 30, 50]
+    num_nearest_neighbors = [2, 4, 5, 6, 8, 10, 15, 20, 30, 50]
     # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
 
@@ -38,8 +38,8 @@ def main():
     segmentation_extractor.extract_segments('genres') # segmens for movielens
 
     results = []
-    for num_factors in factors:
-        # for K in num_nearest_neighbors:
+    # for num_factors in factors:
+    for K in num_nearest_neighbors:
         for regularization in regularizations:
         # for num_iters in num_iterations:
         # for alpha in alphas:
@@ -47,11 +47,12 @@ def main():
             # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, num_iters)
             # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 0.01, 3, alpha)
             # metrics = run_experiment_ILP(settings, train_dataset, test_dataset, segmentation_extractor, num_factors, 0.01, 3, alpha)
-            metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors=num_factors, regularization=regularization, num_iters=3)
+            # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors=num_factors, regularization=regularization, num_iters=3)
             # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, 128, regularization, num_iters=3, N=N)
+            metrics = run_experiment_ALS(settings, train_dataset, test_dataset, 128, regularization, 3, K)
             # metrics = run_experiment_ALS(settings, train_dataset, test_dataset, num_factors, 10., num_iters=3, K=K)
-            result = (num_factors, regularization, metrics)
-            # result = (N, regularization, metrics)
+            # result = (num_factors, regularization, metrics)
+            result = (K, regularization, metrics)
             # result = (num_factors, K, metrics)
             results.append(result)
             with open(RESULTS_FILE_ALS, 'a') as f:

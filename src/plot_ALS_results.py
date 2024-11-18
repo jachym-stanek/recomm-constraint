@@ -10,21 +10,24 @@ from matplotlib.lines import Line2D
 # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
 # factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25]
 # regularizations = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
-factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-# regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
-regularizations = [0.01, 0.1, 1.0, 10.0, 100.0]
+# factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+# regularizations = [0.01, 0.1, 1.0, 10.0, 100.0]
+num_nearest_neighbors = [2, 4, 5, 6, 8, 10, 15, 20, 30, 50]
 
 PLOT_CONSTRAINED = False
 
 results = []
-with open('results_factors_vs_reg_new.txt', 'r') as f:
+with open('results_nn_vs_reg.txt', 'r') as f:
     for line in f:
         # num_factors, num_iters, metrics = eval(line)
         # num_factors, alpha , metrics = eval(line)
-        num_factors, regularization, metrics = eval(line)
+        # num_factors, regularization, metrics = eval(line)
+        num_nn, regularization, metrics = eval(line)
         # results.append((num_factors, num_iters, metrics))
-        results.append((num_factors, regularization, metrics))
+        # results.append((num_factors, regularization, metrics))
         # results.append((num_factors, alpha, metrics))
+        results.append((num_nn, regularization, metrics))
 print(results)
 
 
@@ -32,7 +35,8 @@ print(results)
 fig, ax = plt.subplots(1, 2, figsize=(14, 6))
 
 # First plot: fixed num_factors, varying alpha
-for num_factors in factors:
+# for num_factors in factors:
+for nn in num_nearest_neighbors:
     recall = []
     catalog_coverage = []
     recall_constrained = []
@@ -40,7 +44,8 @@ for num_factors in factors:
     # alpha_values = []
     regularization_values = []
     for result in results:
-        if result[0] == num_factors and result[2]['average_recall'] > 0.0:
+        # if result[0] == num_factors and result[2]['average_recall'] > 0.0:
+        if result[0] == nn and result[2]['average_recall'] > 0.0:
             recall.append(result[2]['average_recall'])
             catalog_coverage.append(result[2]['catalog_coverage'])
             if PLOT_CONSTRAINED:
@@ -49,7 +54,8 @@ for num_factors in factors:
             # alpha_values.append(result[1])
             regularization_values.append(result[1])
     # Plot unconstrained metrics
-    line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {num_factors}')
+    # line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {num_factors}')
+    line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num Nearest Neighbors: {nn}')
     # Plot constrained metrics with same color, dotted line
     if PLOT_CONSTRAINED:
         ax[0].plot(recall_constrained, catalog_coverage_constrained, linestyle='dotted', color=line.get_color())
@@ -67,7 +73,8 @@ for num_factors in factors:
 ax[0].set_xlabel(f'Average Recall@N')
 ax[0].set_ylabel('Catalog Coverage')
 # ax[0].set_title('Fixed Num Factors, Varying Alpha')
-ax[0].set_title('Fixed Num Factors, Varying Regularization')
+# ax[0].set_title('Fixed Num Factors, Varying Regularization')
+ax[0].set_title('Fixed Num Nearest Neighbors, Varying Regularization')
 
 # Create custom legend entries for unconstrained and constrained
 handles, labels = ax[0].get_legend_handles_labels()
@@ -112,7 +119,8 @@ for regularization in regularizations:
 ax[1].set_xlabel(f'Average Recall@N')
 ax[1].set_ylabel('Catalog Coverage')
 # ax[1].set_title('Fixed Alpha, Varying Num Factors')
-ax[1].set_title('Fixed Regularization, Varying Num Factors')
+# ax[1].set_title('Fixed Regularization, Varying Num Factors')
+ax[1].set_title('Fixed Regularization, Varying Num Nearest Neighbors')
 
 # Create custom legend entries for unconstrained and constrained
 handles, labels = ax[1].get_legend_handles_labels()

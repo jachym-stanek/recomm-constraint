@@ -1,7 +1,7 @@
 import time
 
 from gurobipy import Model, GRB, quicksum
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from src.algorithms.algorithm import Algorithm
 from src.segmentation import Segment
@@ -100,5 +100,93 @@ class ILP(Algorithm):
         keep taking until all min_items constraints have enough items
     
     """
-    def preprocess_candidates(self, items: Dict[str, float], segments: List[Segment], constraints: List[Constraint], N: int):
+    def preprocess_items(self, items: Dict[str, float],
+                         segments: Dict[str, Segment],
+                         constraints: List[Constraint],
+                         item_segment_map: Dict[str, str], # map item_id to segment_id
+                         N: int):
+        start = time.time()
 
+        # Step 1: Process MaxItemsPerSegmentConstraints
+        # Initialize a set to hold the candidate items
+        removed_items = set()
+
+        # For each MaxItemsPerSegmentConstraint, compute the maximum number of items
+        for constraint in constraints:
+            if isinstance(constraint, MaxItemsPerSegmentConstraint):
+                segment_id = constraint.segment_id
+                max_items = constraint.max_items
+                window_size = constraint.window_size
+
+                # Compute the maximum possible number of items from the segment
+                max_total_items = self.compute_limit_items(N, window_size, max_items)
+                # Get the segment's items
+                segment_items = list(segments[segment_id])
+                sorted_items = sorted(segment_items, key=lambda x: items[x])
+                removed = set(sorted_items[:-max_total_items]) # Remove the lowest scoring items, keep the top max_total_items
+                removed_items.update(removed)
+                print(f"[ILP] Removing {len(removed)} items from segment {segment_id}, segment num items: {len(segments[segment_id])}, max_items: {max_items}, max_total_items: {max_total_items}")
+
+        # Order the remaining items by score
+        remaining_items = {item_id: score for item_id, score in items.items() if item_id not in removed_items}
+        sorted_items = sorted(remaining_items.items(), key=lambda x: x[1], reverse=True)
+
+        # Step 2: Process MinItemsPerSegmentConstraints
+        # Compute the total minimum required items
+        min_required_items = {segment_id: 0 for segment_id in segments.keys()}
+        added_items_per_segment = {segment_id: set() for segment_id in segments.keys()}
+        min_satisfied = {}
+        for constraint in constraints:
+            if isinstance(constraint, MinItemsPerSegmentConstraint):
+                segment_id = constraint.segment_id
+                min_required_items[segment_id] = self.compute_limit_items(N, constraint.window_size, constraint.min_items)
+                min_satisfied[segment_id] = False
+
+        candidate_items = dict()
+        idx = 0
+        while True:
+            item, score = sorted_items[idx]
+            item_segment = item_segment_map.get(item)
+
+            # decide if to add item
+            if len(candidate_items) < N or (item_segment in min_satisfied and not min_satisfied[item_segment]):
+                candidate_items[item] = score
+
+                if item_segment is not None:
+                    added_items_per_segment[item_segment].add(item)
+
+                if item_segment in min_satisfied:
+                    if len(added_items_per_segment[item_segment]) >= min_required_items[item_segment]:
+                        min_satisfied[item_segment] = True
+                        print(f"[ILP] Segment {item_segment} has enough items {len(added_items_per_segment[item_segment])} >= {min_required_items[item_segment]}")
+
+            if len(candidate_items) >= N and all(min_satisfied.values()): # all min items constraints are satisfied and we have enough items
+                break
+
+            idx += 1
+            if idx >= len(sorted_items):
+                break
+
+        # remove items from segments
+        for segment_id, items in added_items_per_segment.items():
+            segments[segment_id] = Segment(segment_id, segments[segment_id].segmentation_property, *items)
+
+        print(f"[ILP] Total candidate items after preprocessing: {len(candidate_items)} time: {(time.time() - start)*1000} milliseconds")
+        return candidate_items, list(segments.values())
+
+    # hard limit for MaxItemsPerSegmentConstraint, worst case for MinItemsPerSegmentConstraint
+    def compute_limit_items(self, N, W, M):
+        max_items = 0
+        p = 1
+        while p <= N:
+            # Set M positions to 'X'
+            for _ in range(M):
+                if p <= N:
+                    max_items += 1
+                    p += 1
+                else:
+                    break
+            # Set W - M positions to 'O'
+            p += W - M
+
+        return max_items

@@ -1,6 +1,7 @@
 import random
 import time
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 import pandas as pd
 
@@ -43,7 +44,7 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
     return elapsed_time * 1000  # Convert to milliseconds
 
 
-def main():
+def ilp_basic_test():
     solver = ILP()
 
     # Define items with fixed scores
@@ -195,42 +196,51 @@ def main():
     run_test("Test Case 9", solver, items, segments, constraints, N) # should include 2 items from each segment even if it reduces the total score
 
 
-def ILP_time_efficiency(constraint_weight=1.0):
+def ILP_time_efficiency(constraint_weight=1.0, use_preprocessing=False):
     solver = ILP()
-    num_recomms = [5, 10, 20, 50, 100, 200, 500] # N
+    num_recomms = [5, 10, 20, 50, 75, 100, 200, 300, 500] # N
     num_candidates = [10, 50, 100, 200, 500, 1000] # M
     num_constraints = [1, 2, 3, 4, 5, 8, 10, 15] # C
-    num_segments = {10: 2, 50: 10, 100: 10, 200: 20, 500: 50, 1000: 100} # M -> S
-    elapsed_times = dict() # (N, M, C) -> elapsed_time
+    results = dict() # (N, M, C) -> elapsed_time/elapsed_times
 
     for N in num_recomms:
         for M in num_candidates:
             if M < N:
                 continue
             items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
-            S = num_segments[M]
-            segments = segments = [Segment(f'segment{i}', 'prop', *list(items.keys())[i*S:(i+1)*S]) for i in range(S)]
+            num_segments = 10
+            segment_size = M // num_segments
+            segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*segment_size:(i+1)*segment_size]) for i in range(num_segments)]
             available_constraints = [
                                         MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=N//5,
-                                                                     window_size=N, weight=constraint_weight) for i in range(S)
+                                                                     window_size=N, weight=constraint_weight) for i in range(num_segments)
                                     ] + [
                                         MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=N//5+1,
-                                                                     window_size=N, weight=constraint_weight) for i in range(S)
+                                                                     window_size=N, weight=constraint_weight) for i in range(num_segments)
                                     ] + [
                                         MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2,
-                                                                     window_size=5, weight=constraint_weight) for i in range(S)
+                                                                     window_size=5, weight=constraint_weight) for i in range(num_segments)
                                     ] + [
                                         MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3,
-                                                                     window_size=5, weight=constraint_weight) for i in range(S)
+                                                                     window_size=5, weight=constraint_weight) for i in range(num_segments)
                                     ]
-            for C in num_constraints:
+            if use_preprocessing:
+                C = 5
                 constraints = random.choices(available_constraints, k=C)
-                elapsed_time = run_test(f"Test Case ({N}, {M}, {C})", solver, items, segments, constraints, N, using_soft_constraints=True)
-                elapsed_times[(N, M, C)] = elapsed_time
+                elapsed_times = run_test_preprocessing(f"Test Case ({N}, {M}, {C})", solver, items, segments,
+                                                       constraints, N)
+                results[(N, M, C)] = elapsed_times
+            else:
+                for C in num_constraints:
+                    constraints = random.choices(available_constraints, k=C)
+                    elapsed_time = run_test(f"Test Case ({N}, {M}, {C})", solver, items, segments, constraints, N, using_soft_constraints=True)
+                    results[(N, M, C)] = elapsed_time
 
-    plot_results(elapsed_times)
-    plot_results_one_graph(elapsed_times)
-
+    if not use_preprocessing:
+        plot_results(results)
+        plot_results_one_graph(results)
+    else:
+        plot_results_preprocessing(results)
 
 def plot_results(results: dict):
     num_recomms = [5, 10, 20, 50, 100, 200, 500]  # N
@@ -289,11 +299,166 @@ def plot_results_one_graph(results: dict):
     plt.show()
 
 
+# plot results NxM on x-axis, time on y-axis for different C (all in one graph)
+# use blue for normal results, red for preprocessed results
+def plot_results_preprocessing(results: dict):
+    # process results
+    NM = []
+    time_differences = []
+    average_times_N_preprocessed = {}
+    for (N, M, C), elapsed_times in results.items():
+        if N==M:    # skip N=M because filtering does not make sense in this case
+            continue
+        NM.append(N*M)
+        time_differences.append(elapsed_times[0]/elapsed_times[1] * 100)
+        if N not in average_times_N_preprocessed:
+            average_times_N_preprocessed[N] = []
+        average_times_N_preprocessed[N].append(elapsed_times[0])
+
+    # average times for each N
+    average_times_N_preprocessed = {N: sum(times)/len(times) for N, times in average_times_N_preprocessed.items()}
+
+    # plot percentage of time difference
+    ticks = np.arange(0, max(time_differences) + 10, 10)
+    plt.figure(figsize=(10, 8))
+    plt.scatter(NM, time_differences, marker='o')
+    plt.xlabel('N*M')
+    plt.ylabel('Time Fraction Preprocessed [%]')
+    plt.title('ILP Preprocessing Time Efficiency')
+    plt.yticks(ticks)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # plot average times for each N
+    minor_ticks = np.arange(0, max(average_times_N_preprocessed.values()) + 200, 100)
+    major_ticks = np.arange(0, max(average_times_N_preprocessed.values()) + 200, 500)
+    plt.figure(figsize=(10, 8))
+    plt.plot(list(average_times_N_preprocessed.keys()), list(average_times_N_preprocessed.values()), marker='o')
+    plt.xlabel('N')
+    plt.ylabel('Average Elapsed Time after Preprocessing (milliseconds)')
+    plt.title('ILP Preprocessing Time Efficiency')
+    plt.yticks(minor_ticks, minor=True)
+    plt.yticks(major_ticks, minor=False)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+def items_preprocessing_basic_test():
+    N = 10
+    solver = ILP()
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 10:(i + 1) * 10]) for i in range(10)]
+    segments_dict = {seg.id: seg for seg in segments}
+    # item to segment id dict
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
+    constraints = [
+        MinItemsPerSegmentConstraint(segment_id=f'segment0', min_items=1, window_size=6, weight=1.0),
+        MinItemsPerSegmentConstraint(segment_id=f'segment1', min_items=1, window_size=6, weight=0.9),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment2', max_items=2, window_size=5, weight=0.8),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment3', max_items=2, window_size=5, weight=0.7),
+        MinItemsPerSegmentConstraint(segment_id=f'segment4', min_items=1, window_size=6, weight=0.6),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment5', max_items=2, window_size=5, weight=0.5),
+    ]
+    filtered_items, filtered_segments = solver.preprocess_items(items, segments_dict, constraints, item_segment_map, N)
+    print(filtered_items)
+
+    run_test("Test Case Preprocessed", solver, filtered_items, filtered_segments, constraints, N, using_soft_constraints=True)
+    run_test("Test Case Normal", solver, items, segments, constraints, N, using_soft_constraints=True)
+
+    N = 50
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 1001)}
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 100:(i + 1) * 100]) for i in range(10)]
+    segments_dict = {seg.id: seg for seg in segments}
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
+    constraints = [
+        MinItemsPerSegmentConstraint(segment_id=f'segment0', min_items=1, window_size=10, weight=1.0),
+        MinItemsPerSegmentConstraint(segment_id=f'segment1', min_items=1, window_size=10, weight=0.9),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment2', max_items=2, window_size=5, weight=0.8),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment3', max_items=2, window_size=5, weight=0.7),
+        MinItemsPerSegmentConstraint(segment_id=f'segment4', min_items=1, window_size=10, weight=0.6),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment5', max_items=2, window_size=5, weight=0.5),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment6', max_items=2, window_size=5, weight=0.4),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment7', max_items=2, window_size=5, weight=0.3),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment8', max_items=2, window_size=5, weight=0.2),
+        MaxItemsPerSegmentConstraint(segment_id=f'segment9', max_items=2, window_size=5, weight=0.1),
+    ]
+    filtered_items, filtered_segments = solver.preprocess_items(items, segments_dict, constraints, item_segment_map, N)
+    print(filtered_items)
+
+    run_test("Test Case Preprocessed", solver, filtered_items, filtered_segments, constraints, N, using_soft_constraints=True)
+    run_test("Test Case Normal", solver, items, segments, constraints, N, using_soft_constraints=True)
+
+def run_test_preprocessing(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, verbose=False):
+    segments_dict = {seg.id: seg for seg in segments}
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
+
+    print(f"\n=== {test_name} ===")
+    start_time = time.time()
+    filtered_items, filtered_segments = solver.preprocess_items(items, segments_dict, constraints, item_segment_map, N)
+    recommended_items = solver.solve(filtered_items, filtered_segments, constraints, N)
+
+    all_constraints_satisfied_preprocess = True
+    total_score_preprocess = 0
+
+    # Check constraints
+    if recommended_items:
+        for constraint in constraints:
+            if not constraint.check_constraint(recommended_items, items, segments_dict):
+                all_constraints_satisfied_preprocess = False
+        if all_constraints_satisfied_preprocess or using_soft_constraints:
+            print(f"All constraints are satisfied for {test_name}.")
+            for position, item_id in recommended_items.items():
+                score = items[item_id]
+                total_score_preprocess += score
+                item_segments = [seg.id for seg in segments if item_id in seg]
+                if verbose:
+                    print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
+            print(f"Total Score: {total_score_preprocess:.1f}")
+    else:
+        print(f"No solution found for {test_name}.")
+
+    elapsed_time_preprocessing = (time.time() - start_time)*1000
+    print(f"Elapsed time for preprocessing test: {elapsed_time_preprocessing:.4f} milliseconds")
+
+    # Run the test with the original items and segments
+    start_time = time.time()
+    recommended_items = solver.solve(items, segments, constraints, N)
+
+    all_constraints_satisfied = True
+    total_score = 0
+
+    # Check constraints
+    if recommended_items:
+        for constraint in constraints:
+            if not constraint.check_constraint(recommended_items, items, segments_dict):
+                all_constraints_satisfied = False
+        if all_constraints_satisfied or using_soft_constraints:
+            print(f"All constraints are satisfied for {test_name}.")
+            for position, item_id in recommended_items.items():
+                score = items[item_id]
+                total_score += score
+                item_segments = [seg.id for seg in segments if item_id in seg]
+                if verbose:
+                    print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
+            print(f"Total Score: {total_score:.1f}")
+    else:
+        print(f"No solution found for {test_name}.")
+
+    elapsed_time = (time.time() - start_time)*1000
+    print(f"Elapsed time for original test: {elapsed_time:.4f} milliseconds")
+    print(f"Elapsed time difference: {elapsed_time - elapsed_time_preprocessing:.4f} milliseconds, score difference: {total_score - total_score_preprocess:.4f}")
+
+    return elapsed_time_preprocessing, elapsed_time
+
 
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
-    ILP_time_efficiency(constraint_weight=0.9)
+    # ILP_time_efficiency(constraint_weight=0.9)
+    # items_preprocessing_test()
+    ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
 
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
