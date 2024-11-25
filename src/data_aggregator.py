@@ -14,7 +14,7 @@ from src.settings import Settings
 class DataAggregator:
     def __init__(self, settings: Settings):
         self.user_id_mapping = None
-        self.item_id_mapping = None
+        self.item_id2idx = None
 
         self.users = None
         self.items = None
@@ -56,8 +56,8 @@ class DataAggregator:
 
         # Create ID mappings
         self.user_id_mapping = {user_id: idx for idx, user_id in enumerate(self.users['user_id'])}
-        self.item_id_mapping = {item_id: idx for idx, item_id in enumerate(self.items['item_id'])}
-        self.item_idx_mapping = {idx: item_id for item_id, idx in self.item_id_mapping.items()}
+        self.item_id2idx = {item_id: idx for idx, item_id in enumerate(self.items['item_id'])}
+        self.item_idx2id = {idx: item_id for item_id, idx in self.item_id2idx.items()}
 
     def apply_interaction_weights(self, interaction_weights, aggregation_setting):
         print("[DataAggregator] Applying interaction weights...")
@@ -86,14 +86,14 @@ class DataAggregator:
 
         # Map user and item IDs to indices
         self.interactions['user_idx'] = self.interactions['user_id'].map(self.user_id_mapping)
-        self.interactions['item_idx'] = self.interactions['item_id'].map(self.item_id_mapping)
+        self.interactions['item_idx'] = self.interactions['item_id'].map(self.item_id2idx)
 
         # Aggregate interactions (sum weighted values for each user-item pair)
         aggregated = self.interactions.groupby(['user_idx', 'item_idx'])['weighted_value'].sum().reset_index()
 
         # Create sparse rating matrix
         num_users = len(self.user_id_mapping)
-        num_items = len(self.item_id_mapping)
+        num_items = len(self.item_id2idx)
         row_indices = aggregated['user_idx'].values
         col_indices = aggregated['item_idx'].values
         data = aggregated['weighted_value'].values
@@ -121,7 +121,7 @@ class DataAggregator:
         mappings_file = os.path.join(self.settings.dataset.get('transformed_data_dir'), f"{dataset_name}_id_mappings.json")
         id_mappings = {
             'user_id_mapping': self.user_id_mapping,
-            'item_id_mapping': self.item_id_mapping
+            'item_id_mapping': self.item_id2idx
         }
         with open(mappings_file, 'w') as f:
             json.dump(id_mappings, f)
@@ -129,8 +129,8 @@ class DataAggregator:
         # save item id mappings
         item_mappings_file = os.path.join(self.settings.dataset.get('transformed_data_dir'), f"{dataset_name}_item_id_mappings.json")
         item_id_mappings = {
-            'item_id_mapping': self.item_id_mapping,
-            'item_idx_mapping': self.item_idx_mapping
+            'item_id2idx': self.item_id2idx,
+            'item_idx2id': self.item_idx2id
         }
         with open(item_mappings_file, 'w') as f:
             json.dump(item_id_mappings, f)

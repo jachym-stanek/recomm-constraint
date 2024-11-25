@@ -68,7 +68,8 @@ class DatasetTransformer:
         print("[DatasetTransformer] Extracting items data...")
         items = movies.rename(columns={'movieId': 'item_id'})
         items['genres'] = items['genres'].apply(lambda x: x.split('|') if pd.notnull(x) else [])
-        item_properties = ['title', 'genres']
+        items['year'] = items['title'].str[-5:-1] # extract year from title (last 6 characters is '(year)')
+        item_properties = ['title', 'genres', 'year']
         items_file = os.path.join(transformed_data_dir, 'items.csv')
         items.to_csv(items_file, index=False)
         print(f"[DatasetTransformer] Extracted {items.shape[0]} items with columns: {', '.join(items.columns)}")

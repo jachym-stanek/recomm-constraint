@@ -1,14 +1,16 @@
 # evaluator.py
 from traceback import print_tb
+from typing import List
 
 import numpy as np
 from scipy.sparse import csr_matrix
+from sklearn.utils import deprecated
 
 from src.dataset import Dataset
 from src.settings import Settings
 from src.segmentation import SegmentationExtractor
 from src.algorithms.ILP import ILP
-from src.constraints.constraint import SegmentationMaxDiversity
+from src.constraints.constraint import SegmentationMaxDiversity, Constraint
 
 
 class Evaluator:
@@ -49,7 +51,7 @@ class Evaluator:
                 # Generate recommendations
                 # print(f"obsrvation vector: {user_observation}")
                 # print(f"[Evaluator] User {user}, Dims of user obs: {user_observation.shape}, Observations: {observed_items}")
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, K=K, precomputed_similarities=precomputed_similarities, cold_start=True)
+                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, K=K, precomputed_similarities=precomputed_similarities, test_user=True)
                 # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms}")
                 # print values of recommeded items in the user observation
                 # print(f"recommended items: {user_observation[0, recomms].toarray()}")
@@ -73,6 +75,7 @@ class Evaluator:
 
         return {'average_recall': average_recall, 'catalog_coverage': len(total_items_recommended) / train_dataset.num_items}
 
+    @deprecated
     def evaluate_recall_at_n_batch(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
         user_groups = self.separate_test_users_by_interactions(test_dataset)
 
@@ -90,7 +93,8 @@ class Evaluator:
                 recomms, scores = model.recommend_batch(users, users_observations, observed_items, N)
                 print(f"[Evaluator] Hidden item {hidden_items}, Recommendations: {recomms}")
 
-    def evaluate_constrained_model(self, train_dataset: Dataset, test_dataset: Dataset, segmentation_extractor: SegmentationExtractor, model, N=10):
+    def evaluate_constrained_model(self, train_dataset: Dataset, test_dataset: Dataset, segmentation_extractor: SegmentationExtractor,
+                                   constraints: List[Constraint], model, K=5, N=10, M=100):
         print(
             f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall= 0.0
@@ -99,6 +103,9 @@ class Evaluator:
         total_items_recommended = set()
         total_items_recommended_constrained = set()
         skipped_users = 0
+
+        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors, K)
+        solver = ILP(verbose=False)
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
@@ -122,28 +129,37 @@ class Evaluator:
 
                 user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
 
-                # Generate recommendations
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N*10,  cold_start=False)
+                # Generate M candidate items
+                inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M, K=K,
+                                                  precomputed_similarities=precomputed_similarities, test_user=True)
 
                 # select 10 items with the highest scores
-                recomms_no_constraints = recomms[:10]
+                recomms_no_constraints = inner_recomms[:N]
 
-                canditates = {item: score for item, score in zip(recomms, scores)}
-                recomm_segments = segmentation_extractor.get_segments_for_recomms(recomms)
-                recomms_constrained = self.select_recomms_based_on_constraints(ILP(verbose=False), canditates, recomm_segments, N)
+                canditates = {item: score for item, score in zip(inner_recomms, scores)}
+                recomm_segments = segmentation_extractor.get_segments_for_recomms(inner_recomms)
 
-                # for item in recomms_constrained:
-                #     item_segments = [segment.segment_id for segment in recomm_segments if item in segment]
-                #     print(f"[Evaluator] Item {item} segments: {item_segments}")
+                recomms_constrained = solver.solve(canditates, recomm_segments, constraints, N)
+                if recomms_constrained is None:
+                    print(f"[Evaluator] No solution found for user {user}, Hidden item {hidden_item}")
+                    continue
+                recomms_constrained_items = list(recomms_constrained.values())
+
+                # print constrainted recommendations
+                # print(f"[Evaluator] Recomms constrained:")
+                # for position, item in recomms_constrained.items():
+                #     score = canditates[item]
+                #     item_segments = [segment for segment in recomm_segments if item in segment]
+                #     print(f"Position: {position}, Item: {item}, Score: {score}, Segments: {item_segments}")
 
                 # Compute recall
                 hit_count = 1 if hidden_item in recomms_no_constraints else 0
                 recalls.append(hit_count)
                 total_items_recommended.update(recomms_no_constraints)
 
-                hit_count_constrained = 1 if hidden_item in recomms_constrained else 0
+                hit_count_constrained = 1 if hidden_item in recomms_constrained_items else 0
                 recalls_constrained.append(hit_count_constrained)
-                total_items_recommended_constrained.update(recomms_constrained)
+                total_items_recommended_constrained.update(recomms_constrained_items)
 
                 # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms_no_constraints}, Constrained: {recomms_constrained}")
 
@@ -171,12 +187,6 @@ class Evaluator:
                 'average_recall_constrained': average_recall_constrained,
                 'catalog_coverage_constrained': len(total_items_recommended_constrained) / train_dataset.num_items}
 
-    def select_recomms_based_on_constraints(self, solver, items, segments, N):
-        # test one constraint - max 2 items from the same genre
-        constraints = [SegmentationMaxDiversity(segmentation_property='genres', max_items=2, weight=0.9)]
-        recommended_items = solver.solve(items, segments, constraints, N)
-
-        return list(recommended_items.values())
 
     # separate test users by number of relevant items (ratings > 0)
     def separate_test_users_by_interactions(self, test_dataset: Dataset):
