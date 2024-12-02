@@ -8,7 +8,8 @@ import pandas as pd
 from src.algorithms.ILP import ILP
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, SegmentationMinDiversity, SegmentationMaxDiversity
+    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, SegmentationMinDiversity, SegmentationMaxDiversity, \
+    ItemUniqueness2D
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
@@ -642,6 +643,66 @@ def plot_results_ILP_partitioning(results: dict):
 def ILP_solve_for_overlapping_segments():
     pass
 
+def run_test_2D_constraints(test_name, solver, items, segments, constraints1D, constraints2D, N, using_soft_constraints=False,
+                            verbose=False):
+    segments_dict = {seg.id: seg for seg in segments}
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
+
+    print(f"\n=== {test_name} ===")
+    start_time = time.time()
+
+    recommended_items = solver.solve_2D_constraints(items, segments_dict, constraints1D, constraints2D, N)
+
+def ILP_2D_constraints_test():
+    # Test 1 - see if 2D constraints work
+    solver = ILP(verbose=True)
+    N = 5
+    items1 = {"item1": 20, "item2": 2, "item3": 3, "item4": 2, "item5": 5, "item6": 2, "item7": 7, "item8": 2, "item9": 9, "item10": 2}
+    items2 = {"item1": 20, "item8": 2, "item9": 11, "item10": 2, "item11": 13, "item12": 2, "item13": 15, "item14": 2, "item15": 17, "item16": 2, "item17": 19}
+    items3 = {"item1": 20, "item3": 3, "item5": 5, "item7": 7, "item9": 9, "item11": 2, "item13": 4, "item15": 6, "item17": 8, "item19": 10}
+    items = [items1, items2, items3]
+    constraints = [[], [], []]
+    constraints2D = [ ItemUniqueness2D(width=3, height=2) ]
+
+    result = solver.solve_2D_constraints(items, {}, constraints, constraints2D, N)
+
+    # print solution
+    for i in range(len(items)):
+        print(f"Row {i+1}:", end=" ")
+        for j in range(N):
+            print(f"{result[i, j+1]}", end=" ")
+        print()
+
+    # check if the solution satisfies the constraints
+    for constraint in constraints2D:
+        if not constraint.check_constraint(result, len(items), N):
+            print(f"Constraint {constraint} is not satisfied.")
+        else:
+            print(f"Constraint {constraint} is satisfied.")
+
+    # Test 2 - mix 1D and 2D constraints
+    segment1 = Segment('segment1', 'test-property', "item1", "item3", "item5", "item7", "item9", "item11", "item13", "item15", "item17", "item19")
+    segment2 = Segment('segment2', 'test-property', "item2", "item4", "item6", "item8", "item10", "item12", "item14", "item16")
+    segments_id_dict = {segment1.id: segment1, segment2.id: segment2}
+
+    constraints1 = [
+        MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=5),
+        MaxItemsPerSegmentConstraint(segment_id='segment1', max_items=4, window_size=5),
+    ]
+    constraints2 = [SegmentationMinDiversity(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2)]
+    constraints1D = [constraints1, constraints2, []]
+
+    result = solver.solve_2D_constraints(items, segments_id_dict, constraints1D, constraints2D, N)
+
+    # print solution
+    for i in range(len(items)):
+        print(f"Row {i+1}:", end=" ")
+        for j in range(N):
+            print(f"{result[i, j+1]}", end=" ")
+        print()
+
+
+
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
@@ -649,8 +710,9 @@ if __name__ == "__main__":
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
     # ILP_solve_with_already_recommeded_items_test()
-    ILP_partitioning_test()
+    # ILP_partitioning_test()
     # ILP_partitioning_time_efficiency()
+    ILP_2D_constraints_test()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi

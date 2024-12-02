@@ -94,8 +94,8 @@ class ILP(Algorithm):
         item_ids = list(items.keys())
         positions = list(range(1, N + 1))
 
-        # Create decision variables x[i,p] for item i at position p
-        x = model.addVars(item_ids, positions, vtype=GRB.BINARY, name="x")
+        # Create decision variables x[i,0,p] for item i at position p, 1D case so row index is 0 (for compatibility with 2D)
+        x = model.addVars(item_ids, [0], positions, vtype=GRB.BINARY, name="x")
 
         # Initialize penalties list
         model._penalties = []
@@ -103,20 +103,20 @@ class ILP(Algorithm):
         # Constraint 1: Each item is selected at most once
         for i in item_ids:
             model.addConstr(
-                quicksum(x[i, p] for p in positions) <= 1,
+                quicksum(x[i, 0, p] for p in positions) <= 1,
                 name=f"ItemOnce_{i}"
             )
 
         # Constraint 2: Each position has at most one item
         for p in positions:
             model.addConstr(
-                quicksum(x[i, p] for i in item_ids) <= 1,
+                quicksum(x[i, 0, p] for i in item_ids) <= 1,
                 name=f"PositionOnce_{p}"
             )
 
         # Constraint 3: Exactly N items are selected
         model.addConstr(
-            quicksum(x[i, p] for i in item_ids for p in positions) == N,
+            quicksum(x[i, 0, p] for i in item_ids for p in positions) == N,
             name="TotalItems"
         )
 
@@ -125,10 +125,10 @@ class ILP(Algorithm):
 
         # Process each constraint in the constraints list
         for constraint in constraints:
-            constraint.add_to_model(model, x, items, segments, positions, N, K, already_recommended_items)
+            constraint.add_to_model(model, x, items, segments, 0, positions, N, K, already_recommended_items)
 
         # Objective function: Maximize total score - total penalty
-        total_score = quicksum(items[i] * x[i, p] for i in item_ids for p in positions)
+        total_score = quicksum(items[i] * x[i, 0, p] for i in item_ids for p in positions)
         total_penalty = quicksum(penalty_coeff * s for s, penalty_coeff in model._penalties)
         model.setObjective(total_score - total_penalty, GRB.MAXIMIZE)
 
@@ -142,7 +142,7 @@ class ILP(Algorithm):
             solution = {}
             for i in item_ids:
                 for p in positions:
-                    if x[i, p].X > 0.5:
+                    if x[i, 0, p].X > 0.5:
                         solution[p] = i  # Map position to item
             # Return the recommended items sorted by position
             result = {k: solution[k] for k in sorted(solution)}
@@ -283,3 +283,93 @@ class ILP(Algorithm):
 
         return max_items_limit
 
+
+    def solve_2D_constraints(self, items: List[Dict[str, float]], segments: Dict[str, Segment], constraints: List[List[Constraint]],
+                             constraints2D: List[Constraint2D], N: int):
+        start = time.time()
+
+        if self.verbose:
+            print(
+                f"[{self.name}] Solving ILP with 2D constraints, {len(items)} candidate item pools, {len(segments)} segments,"
+                f" {len(constraints)} constraints, {len(constraints2D)} 2D constraints, row length={N}.")
+
+        model = Model("RecommenderSystem")
+        model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+
+        # Initialize penalties list
+        model._penalties = []
+        total_score = 0
+        total_penalty = 0
+        positions = list(range(1, N + 1)) # positions numbered from 1 to N for convenience
+        X = dict() # decision variables for all rows
+
+        # Add row constraints
+        for r, item_pool in enumerate(items):
+            item_ids = list(item_pool.keys())
+
+            # Create decision variables x[i,r,p] for item i in row r at position p
+            x = model.addVars(item_ids, [r], positions, vtype=GRB.BINARY, name="x")
+            X.update(x)
+
+            # Constraint 1: Each item is selected at most once per row
+            for i in item_ids:
+                model.addConstr(
+                    quicksum(x[i, r, p] for p in positions) <= 1,
+                    name=f"ItemOnce_{i}"
+                )
+
+            # Constraint 2: Each row position has at most one item
+            for p in positions:
+                model.addConstr(
+                    quicksum(x[i, r, p] for i in item_ids) <= 1,
+                    name=f"PositionOnce_{p}"
+                )
+
+            # Constraint 3: Exactly N items are selected per row
+            model.addConstr(
+                quicksum(x[i, r, p] for i in item_ids for p in positions) == N,
+                name="TotalItems"
+            )
+
+            # Penalty scaling factor K (total possible score per row)
+            K = sum(item_pool.values())
+
+            # Process each constraint in the constraints list for the current row
+            for constraint in constraints[r]:
+                constraint.add_to_model(model, x, items[r], segments, r, positions, N, K, already_recommended_items=None)
+
+            # Objective function: Maximize total score - total penalty
+            total_score += quicksum(item_pool[i] * x[i, r, p] for i in item_ids for p in positions)
+            total_penalty += quicksum(penalty_coeff * s for s, penalty_coeff in model._penalties)
+
+        # Process 2D constraints
+        for constraint in constraints2D:
+            constraint.add_to_model(model, X, items, positions, len(items), N)
+
+        model.setObjective(total_score - total_penalty, GRB.MAXIMIZE)
+
+        # Optimize the model
+        model.optimize()
+        result = None
+
+        # Check if the model found an optimal solution
+        if model.Status == GRB.OPTIMAL:
+            # Extract the solution
+            solution = {}
+            for r, item_pool in enumerate(items):
+                item_ids = list(item_pool.keys())
+                for i in item_ids:
+                    for p in positions:
+                        if X[i, r, p].X > 0.5:
+                            solution[(r, p)] = i
+            # Return the recommended items sorted by position
+            result = {k: solution[k] for k in sorted(solution)}
+        elif self.verbose:
+            print(f"[{self.name}] No optimal solution found.")
+
+        end = time.time()
+
+        if self.verbose:
+            print(f"[{self.name}] Finished in {(end - start) * 1000:.2f} ms")
+
+        return result
