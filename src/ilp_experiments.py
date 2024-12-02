@@ -505,40 +505,139 @@ def ILP_solve_with_already_recommeded_items_test():
     run_test("Test Case 3", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
 
-def ILP_time_efficiency_partitioning():
-    num_items = 1000
-    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, num_items+1)}
-    num_segments = 10
-    segment_size = num_items // num_segments
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)]
+def ILP_partitioning_test():
     solver = ILP()
-    N = 100
-    partition_size = 10
-    constraints = [
-        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=1, window_size=10) for i in range(num_segments)
-    ]
-    # run_test_preprocessing("Test Case 1 preprocessing + normal", solver, items, segments, constraints, N, verbose=False)
-    run_test("Test Case 1 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=False)
+    # num_items = 1000
+    # items = {f'item-{i}': random.uniform(0, 1) for i in range(1, num_items+1)}
+    # num_segments = 10
+    # segment_size = num_items // num_segments
+    # segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)]
+    # N = 100
+    # partition_size = 10
+    # constraints = [
+    #     MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=1, window_size=10) for i in range(num_segments)
+    # ]
+    # # run_test_preprocessing("Test Case 1 preprocessing + normal", solver, items, segments, constraints, N, verbose=False)
+    # run_test("Test Case 1 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=False)
+    #
+    # # Test Case 2: partition size smaller than window size
+    # constraints = [
+    #     MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2, window_size=20) for i in range(num_segments)
+    # ] + [
+    #     MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3, window_size=10) for i in range(num_segments)
+    # ]
+    # # run_test_preprocessing("Test Case 2 preprocessing + normal", solver, items, segments, constraints, N, verbose=False)
+    # run_test("Test Case 2 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=False)
+    #
+    #
+    # N = 200
+    # constraints = [
+    #     MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=1, window_size=20) for i in range(num_segments)
+    # ] + [
+    #     MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=1, window_size=5) for i in range(num_segments)
+    # ]
+    # # run_test_preprocessing("Test Case 3 preprocessing + normal", solver, items, segments, constraints, N, verbose=False)
+    # run_test("Test Case 3 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=False)
+    #
+    # # Try when min per window is smaller than amount of segments and segments have decreasing scores
+    # items = {"item-1": 1, "item-2": 2, "item-3": 3, "item-4": 4, "item-5": 5, "item-6": 6, "item-7": 7, "item-8": 8, "item-9": 9, "item-10": 10}
+    # segment1 = Segment('segment1', 'test-prop', 'item-1', 'item-2', 'item-3', 'item-4', 'item-5')
+    # segment2 = Segment('segment2', 'test-prop', 'item-6', 'item-7', 'item-8', 'item-9', 'item-10')
+    # segments = [segment1, segment2]
+    # N = 10
+    # constraints = [ SegmentationMinDiversity(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=3) ]
+    # run_test("Test Case 4 normal", solver, items, segments, constraints, N, verbose=True)
+    # run_test("Test Case 4 partitioning", solver, items, segments, constraints, N, partition_size=3, verbose=True)
 
-    # Test Case 2: partition size smaller than window size
-    constraints = [
-        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2, window_size=20) for i in range(num_segments)
-    ] + [
-        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3, window_size=10) for i in range(num_segments)
-    ]
-    # run_test_preprocessing("Test Case 2 preprocessing + normal", solver, items, segments, constraints, N, verbose=False)
-    run_test("Test Case 2 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=False)
+    items = {f"item-{i}": i for i in range(1, 31)}
+    segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:10])
+    segment2 = Segment('segment2', 'test-prop', *list(items.keys())[10:21])
+    segment3 = Segment('segment3', 'test-prop', *list(items.keys())[21:])
+    segments = [segment1, segment2, segment3]
+    N = 28
+    constraints = [ SegmentationMinDiversity(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5) ]
+    run_test("Test Case 5 normal", solver, items, segments, constraints, N, verbose=True)
+    run_test("Test Case 5 partitioning", solver, items, segments, constraints, N, partition_size=1, verbose=True)
 
 
-    N = 200
-    constraints = [
-        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=1, window_size=20) for i in range(num_segments)
-    ] + [
-        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=1, window_size=5) for i in range(num_segments)
-    ]
-    # run_test_preprocessing("Test Case 3 preprocessing + normal", solver, items, segments, constraints, N, verbose=False)
-    run_test("Test Case 3 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=False)
 
+
+def ILP_partitioning_time_efficiency():
+    num_recomms = [100, 200, 300, 400, 500, 1000, 2000]
+    num_candidates = [200, 300, 500, 1000, 5000, 10000, 20000]
+    partition_sizes = [1, 2, 5, 8, 10, 15, 20, 30]
+    num_segments = 20
+    results = dict()
+    solver = ILP()
+
+    for M in num_candidates:
+        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+        segment_size = M // num_segments
+        segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)]
+
+        # test only MinDiversity constraint
+        constraints = [
+            SegmentationMinDiversity('test-prop', 1, 25)
+        ]
+        for N in num_recomms:
+            for p in partition_sizes:
+                elapsed_time = run_test("Test Case 3 partitioning", solver, items, segments, constraints, N, partition_size=p, verbose=False)
+                results[(M, N, p, "MinOnly")] = elapsed_time
+
+        # test only MaxDiversity constraint
+        constraints = [
+            SegmentationMaxDiversity('test-prop', 2, 25)
+        ]
+        for N in num_recomms:
+            for p in partition_sizes:
+                elapsed_time = run_test("Test Case 3 partitioning", solver, items, segments, constraints, N, partition_size=p, verbose=False)
+                results[(M, N, p, "MaxOnly")] = elapsed_time
+
+        # test both MinDiversity and MaxDiversity constraints
+        constraints = [
+            SegmentationMinDiversity('test-prop', 1, 25),
+            SegmentationMaxDiversity('test-prop', 2, 25)
+        ]
+        for N in num_recomms:
+            for p in partition_sizes:
+                elapsed_time = run_test("Test Case 3 partitioning", solver, items, segments, constraints, N, partition_size=p, verbose=False)
+                results[(M, N, p, "Both")] = elapsed_time
+
+    plot_results_ILP_partitioning(results)
+
+def plot_results_ILP_partitioning(results: dict):
+    # Convert the results dictionary into a pandas DataFrame for easier manipulation
+    data = []
+    for (M, N, P, constraint), elapsed_time in results.items():
+        data.append({'M': M, 'N': N, 'P': P, 'Constraint': constraint, 'Time': elapsed_time})
+    df = pd.DataFrame(data)
+
+    # Iterate over each value of N and create a heatmap of Time vs M and C
+    for constraint in ['MinOnly', 'MaxOnly', 'Both']:
+        df_constraint = df[df['Constraint'] == constraint]
+        if df_constraint.empty:
+            continue  # Skip if there is no data for this constraint
+
+        # Pivot the DataFrame to get M as rows, C as columns, and Time as values
+        pivot_table = df_constraint.pivot(index='M', columns='N', values='Time')
+
+        # Plot the heatmap with color bar label
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(
+            pivot_table,
+            annot=True,
+            fmt=".4f",
+            cmap='viridis_r',
+            cbar_kws={'label': 'Elapsed Time (milliseconds)'}
+        )
+
+        # Add labels and title with time units
+        plt.title(f'ILP Time Efficiency for {constraint} Constraint')
+        plt.xlabel('Number of Recommendations (N)')
+        plt.ylabel('Number of Candidates (M)')
+
+        plt.tight_layout()
+        plt.show()
 
 def ILP_solve_for_overlapping_segments():
     pass
@@ -550,8 +649,8 @@ if __name__ == "__main__":
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
     # ILP_solve_with_already_recommeded_items_test()
-    ILP_time_efficiency_partitioning()
-
+    ILP_partitioning_test()
+    # ILP_partitioning_time_efficiency()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi

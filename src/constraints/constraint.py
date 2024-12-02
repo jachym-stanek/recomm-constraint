@@ -17,6 +17,18 @@ class Constraint:
         raise NotImplementedError("Must implement check_constraint method.")
 
 
+class Constraint2D:
+    def __init__(self, name, weight):
+        self.name = name
+        self.weight = weight  # weight in [0, 1]
+
+    def add_to_model(self, model, x, item_pools, segments, positions, N, K, already_recommended_items=None):
+        raise NotImplementedError("Must implement add_to_model method.")
+
+    def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        raise NotImplementedError("Must implement check_constraint method.")
+
+
 class MinItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
         super().__init__(f"{name}_{segment_id}", weight)
@@ -300,3 +312,28 @@ class SegmentationMaxDiversity(Constraint):
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items})"
+
+
+class ItemUniqueness2D(Constraint2D):
+    def __init__(self, width, height, name="ItemUniqueness2D", weight=1.0):
+        super().__init__(name, weight)
+        self.width = width  # 2D sliding window width
+        self.height = height  # 2D sliding window height
+
+    """
+    In every window of size width x height, each item can appear at most once
+    Each row of the output matrix is filled with items from a different item pool
+    """
+    def add_to_model(self, model, x, item_pools, segments, positions, N, K, already_recommended_items=None):
+        num_rows = len(item_pools)
+        num_cols = N
+
+        row = 0
+
+
+
+    def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        return all(solution[i] != solution[j] for i in solution for j in solution if i != j)
+
+    def __repr__(self):
+        return f"{self.name}()"

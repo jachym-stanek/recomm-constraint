@@ -6,7 +6,8 @@ from typing import Dict, List, Set
 from src.algorithms.algorithm import Algorithm
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, SegmentationMinDiversity, SegmentationMaxDiversity
+    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, SegmentationMinDiversity, SegmentationMaxDiversity, \
+    Constraint2D, ItemUniqueness2D
 
 
 class ILP(Algorithm):
@@ -63,10 +64,10 @@ class ILP(Algorithm):
             # print(f"[ILP] Already recommended segments: {already_recommended_segments}, \nCandidate segments: {candidates_segments}")
             # print(f"[ILP] Already recommended segments count: {dict(sorted(already_recommended_segments_count.items()))}, \nCandidate segments count: {dict(sorted(candidates_segments_count.items()))}")
 
-            inner_result = self.solve(partition_candidates, segments, partition_constraints, partition_count, already_recommended_items)
+            partition_result = self.solve(partition_candidates, segments, partition_constraints, partition_count, already_recommended_items)
 
             # Add the inner result to the final result and remove the recommended items from the candidate list
-            for position, item in inner_result.items():
+            for position, item in partition_result.items():
                 final_result[position+partition_start] = item
                 already_recommended_items.append(item)
                 candidates.pop(item)
@@ -177,22 +178,20 @@ class ILP(Algorithm):
         # Step 1: Process MaxItemsPerSegmentConstraints
         # Initialize a set to hold the candidate items
         removed_items = set()
+        segment_bare_minimums = {}  # used for MinItemsPerSegmentConstraint
 
         # For each MaxItemsPerSegmentConstraint, compute the maximum number of items
         for constraint in constraints:
             if isinstance(constraint, MaxItemsPerSegmentConstraint):
-                segment_id = constraint.segment_id
-                max_items = constraint.max_items
-                window_size = constraint.window_size
-
-                # Compute the maximum possible number of items from the segment
-                max_total_items = self.compute_limit_items(N, window_size, max_items)
-                # Get the segment's items
-                segment_items = [i for i in segments[segment_id] if i in items]
-                sorted_items = sorted(segment_items, key=lambda x: items[x])
-                removed = set(sorted_items[:-max_total_items]) # Remove the lowest scoring items, keep the top max_total_items
-                removed_items.update(removed)
-                # print(f"[ILP] Removing {len(removed)} items from segment {segment_id}, segment num items: {len(segments[segment_id])}, max_items: {max_items}, max_total_items: {max_total_items}")
+                self.preprocess_MaxItemsPerSegmentConstraint(constraint, N, items, segments, removed_items)
+            elif isinstance(constraint, SegmentationMaxDiversity):
+                for c in constraint.constraints:
+                    self.preprocess_MaxItemsPerSegmentConstraint(c, N, items, segments, removed_items)
+            elif isinstance(constraint, MinItemsPerSegmentConstraint):
+                self.compute_bare_minumum_for_MinItemsPerSegmentConstraint(constraint, N, segment_bare_minimums)
+            elif isinstance(constraint, SegmentationMinDiversity):
+                for c in constraint.constraints:
+                    self.compute_bare_minumum_for_MinItemsPerSegmentConstraint(c, N, segment_bare_minimums)
 
         # Order the remaining items by score
         remaining_items = {item_id: score for item_id, score in items.items() if item_id not in removed_items}
@@ -205,9 +204,10 @@ class ILP(Algorithm):
         min_satisfied = {}
         for constraint in constraints:
             if isinstance(constraint, MinItemsPerSegmentConstraint):
-                segment_id = constraint.segment_id
-                min_required_items[segment_id] = self.compute_limit_items(N, constraint.window_size, constraint.min_items)
-                min_satisfied[segment_id] = False
+                self.preprocess_MinItemsPerSegmentConstraint(constraint, N, segment_bare_minimums, min_required_items, min_satisfied)
+            elif isinstance(constraint, SegmentationMinDiversity):
+                for c in constraint.constraints:
+                    self.preprocess_MinItemsPerSegmentConstraint(c, N, segment_bare_minimums, min_required_items, min_satisfied)
 
         candidate_items = dict()
         idx = 0
@@ -215,8 +215,8 @@ class ILP(Algorithm):
             item, score = sorted_items[idx]
             item_segment = item_segment_map.get(item)
 
-            # decide if to add item
-            if len(candidate_items) < N or (item_segment in min_satisfied and not min_satisfied[item_segment]):
+            # decide if to add item - if we do not have enough items or there is a minimum constraint that is not satisfied
+            if (len(candidate_items) < N or item_segment in min_satisfied) and not (item_segment in min_satisfied and min_satisfied[item_segment]): # do not take items that have not satisfied min constraints
                 candidate_items[item] = score
 
                 if item_segment is not None:
@@ -238,19 +238,48 @@ class ILP(Algorithm):
             print(f"[ILP] Total candidate items after preprocessing: {len(candidate_items)} time: {(time.time() - start)*1000} milliseconds")
         return candidate_items
 
+    def preprocess_MaxItemsPerSegmentConstraint(self, constraint: MaxItemsPerSegmentConstraint, N: int, items: Dict[str, float],
+                                                segments: Dict[str, Segment], removed_items: Set[str]):
+        segment_id = constraint.segment_id
+        max_items = constraint.max_items
+        window_size = constraint.window_size
+
+        # Compute the maximum possible number of items from the segment
+        max_total_items = self.compute_limit_items(N, window_size, max_items)
+        # Get the segment's items
+        segment_items = [i for i in segments[segment_id] if i in items]
+        sorted_items = sorted(segment_items, key=lambda x: items[x])
+        removed = set(sorted_items[:-max_total_items])  # Remove the lowest scoring items, keep the top max_total_items
+        removed_items.update(removed)
+        # print(f"[ILP] Removing {len(removed)} items from segment {segment_id}, segment num items: {len(segments[segment_id])}, max_items: {max_items}, max_total_items: {max_total_items}")
+
+    def compute_bare_minumum_for_MinItemsPerSegmentConstraint(self, constraint: MinItemsPerSegmentConstraint, N: int, segment_bare_minimums: Dict[str, int]):
+        segment_id = constraint.segment_id
+        min_items = constraint.min_items
+        window_size = constraint.window_size
+        segment_bare_minimums[segment_id] = max(segment_bare_minimums.get(segment_id, 0), self.compute_limit_items(N, window_size, min_items))
+
+    def preprocess_MinItemsPerSegmentConstraint(self, constraint: MinItemsPerSegmentConstraint, N: int, segment_bare_minimums: Dict[str, int],
+                                                min_required_items: Dict[str, int], min_satisfied: Dict[str, bool]):
+        segment_id = constraint.segment_id
+        sum_bare_minimums = sum([v for v in segment_bare_minimums.values()])
+        min_required_items[segment_id] = segment_bare_minimums.get(segment_id, 0) + N - sum_bare_minimums
+        min_satisfied[segment_id] = False
+
     # hard limit for MaxItemsPerSegmentConstraint, worst case for MinItemsPerSegmentConstraint
-    def compute_limit_items(self, N, W, M):
-        max_items = 0
+    def compute_limit_items(self, N, W, item_limit_per_window):
+        max_items_limit = 0
         p = 1
         while p <= N:
-            # Set M positions to 'X'
-            for _ in range(M):
+            # Set m positions to 'X'
+            for _ in range(item_limit_per_window):
                 if p <= N:
-                    max_items += 1
+                    max_items_limit += 1
                     p += 1
                 else:
                     break
-            # Set W - M positions to 'O'
-            p += W - M
+            # Set W - m positions to 'O'
+            p += W - item_limit_per_window
 
-        return max_items
+        return max_items_limit
+

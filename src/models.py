@@ -11,35 +11,19 @@ from src.dataset import Dataset
 from src.algorithms.ItemKnn import ItemKnn
 
 
+"""
+Models serve for generating recommendations for a user based on some input data.
+"""
 class BaseModel:
     def __init__(self):
         pass
 
     def train(self, rating_matrix):
-        pass
+        raise NotImplementedError("Train method not implemented.")
 
-    def get_similar_users(self, observed_items, k=5):
-        # Find users in the training set who have interacted with similar items
-        # For simplicity, we'll return top-k users who have the most items in common
-
-        user_similarities = []
-
-        num_users = self.train_rating_matrix.shape[0]
-        for user_idx in range(num_users):
-            user_items = set(self.train_rating_matrix[user_idx].nonzero()[1])
-            intersection = observed_items.intersection(user_items)
-            similarity = len(intersection)
-            user_id = self.user_idx_to_id[user_idx]
-            user_similarities.append((user_id, similarity))
-
-        # Sort users by similarity
-        user_similarities.sort(key=lambda x: x[1], reverse=True)
-
-        # Return top-k similar users
-        similar_users = [user_id for user_id, sim in user_similarities[:k] if sim > 0]
-
-        return similar_users
-
+    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, K: int, test_user: bool = True,
+                    cold_start: bool = False, precomputed_similarities=None):
+            raise NotImplementedError("Recommend method not implemented.")
 
 class ALSModel(BaseModel):
     def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0, use_gpu=False, nearest_neighbors=5):
@@ -105,3 +89,23 @@ class ALSModel(BaseModel):
     @property
     def item_factors(self):
         return self.model.item_factors
+
+
+class BestsellerModel(BaseModel):
+    def __init__(self):
+        super().__init__()
+        self.bestsellers = None
+
+    def train(self, train_dataset: Dataset, max_interaction_age: int = 0):
+        self.bestsellers = np.array(train_dataset.matrix.sum(axis=0)).flatten() # Sum of interactions per item
+        self.bestsellers = np.argsort(self.bestsellers)[::-1] # Sort in descending order
+
+    def recommend(self, user: int, observed_items: list, N: int, user_observation: csr_matrix = None,  K: int = None,
+                  test_user: bool = True, cold_start: bool = False, precomputed_similarities=None):
+        # Recommend the top N bestsellers that are not already observed
+        bestseller_indices = []
+        for item in self.bestsellers:
+            if item not in observed_items:
+                bestseller_indices.append(item)
+            if len(bestseller_indices) == N:
+                break
