@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix, load_npz
 import numpy as np
 
-from src.constraints.constraint import SegmentationMaxDiversity
+from src.constraints.constraint import MaxSegmentsPerSegmentationConstraint
 from src.data_split import DataSplitter
 from src.evaluator import Evaluator
 from src.models import ALSModel
@@ -108,7 +108,7 @@ def run_experiment_ILP(settings, train_dataset, test_dataset, segmentation_extra
 
     # Evaluate the model
     evaluator = Evaluator(settings)
-    constraints = [SegmentationMaxDiversity(segmentation_property='genres', max_items=2, weight=0.9)]
+    constraints = [MaxSegmentsPerSegmentationConstraint(segmentation_property='genres', max_items=2, weight=0.9)]
     metrics = evaluator.evaluate_constrained_model(train_dataset=train_dataset, test_dataset=test_dataset,
                                                    segmentation_extractor=segmentation_extractor,
                                                    constraints=constraints,

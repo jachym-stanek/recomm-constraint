@@ -62,15 +62,11 @@ class MinItemsPerSegmentConstraint(Constraint):
         if already_recommended_items: # TODO: refactor this to merge with the previous loop
             counter_start = self.window_size - N if self.window_size > N else 1
             counter_end = min(self.window_size, len(already_recommended_items) + 1)
-            # print(f"Counter start: {counter_start}, counter end: {counter_end}")
             for i in range(counter_start, counter_end):
                 recomm_positions = positions[:self.window_size-i] # positions in the recommendation that are not already recommended
 
-                # print(f"Window variable positions: {recomm_positions}")
-
                 # count the number of items from the segment in the already recommended items that are in the window
                 num_already_recommended = sum(1 for item_id in already_recommended_items[-i:] if item_id in segment_items)
-                # print(f"Already recommended items: {already_recommended_items[-i:]}")
 
                 if self.weight < 1.0:
                     # Soft constraint: Introduce slack variable
@@ -146,7 +142,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
 
         # constraint including the already recommended items
         if already_recommended_items:
-            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_start = self.window_size - N if (N < self.window_size < len(already_recommended_items) + N) else 1
             counter_end = min(self.window_size, len(already_recommended_items))
             for i in range(counter_start, counter_end):
                 recomm_positions = positions[:self.window_size-i]
@@ -262,8 +258,8 @@ class ItemAtPositionConstraint(Constraint):
 Minimum nuber of items from each segment that belongs to segmentation of target property
 E.g. Final recommendation should contain at least 2 items from every genre
 """
-class SegmentationMinDiversity(Constraint):
-    def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="SegmentationMinDiversity", verbose=False):
+class MinSegmentsPerSegmentationConstraint(Constraint):
+    def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="MinSegmentsPerSegmentation", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.min_items = min_items
@@ -276,7 +272,7 @@ class SegmentationMinDiversity(Constraint):
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
                 if self.verbose:
-                    print(f"[SegmentationMinDiversity]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
+                    print(f"[MinSegmentsPerSegmentation]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
                 constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
@@ -284,12 +280,18 @@ class SegmentationMinDiversity(Constraint):
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
 
+    def initialize_constraint_from_segments(self, segments):
+        for segment_id in segments:
+            if segments[segment_id].property== self.segmentation_property:
+                constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, self.window_size, weight=self.weight)
+                self.constraints.append(constraint)
+
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items})"
 
 
-class SegmentationMaxDiversity(Constraint):
-    def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="SegmentationMaxDiversity", verbose=False):
+class MaxSegmentsPerSegmentationConstraint(Constraint):
+    def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="MaxSegmentsPerSegmentation", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.max_items = max_items
@@ -302,13 +304,19 @@ class SegmentationMaxDiversity(Constraint):
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
                 if self.verbose:
-                    print(f"[SegmentationMaxDiversity]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
+                    print(f"[MaxSegmentsPerSegmentation]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
                 constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
+
+    def initialize_constraint_from_segments(self, segments):
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, self.window_size, weight=self.weight)
+                self.constraints.append(constraint)
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items})"
@@ -317,7 +325,7 @@ class SegmentationMaxDiversity(Constraint):
 class ItemUniqueness2D(Constraint2D):
     def __init__(self, width, height, name="ItemUniqueness2D", weight=1.0):
         super().__init__(name, weight)
-        self.width = width  # 2D sliding window width
+        self.width = width    # 2D sliding window width
         self.height = height  # 2D sliding window height
 
     """
@@ -349,8 +357,6 @@ class ItemUniqueness2D(Constraint2D):
                                 return False
                             items_in_window.add(item_id)
         return True
-
-
 
     def __repr__(self):
         return f"{self.name}(width={self.width}, height={self.height})"

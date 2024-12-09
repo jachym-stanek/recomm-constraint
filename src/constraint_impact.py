@@ -9,7 +9,7 @@ from src.algorithms.ILP import ILP
 from src.data_split import DataSplitter
 from src.segmentation import SegmentationExtractor
 from src.settings import Settings
-from src.constraints.constraint import SegmentationMaxDiversity
+from src.constraints.constraint import MaxSegmentsPerSegmentationConstraint
 from src.evaluator import Evaluator
 from src.models import ALSModel
 
@@ -44,7 +44,7 @@ def measure_constraint_impact():
     solver = ILP(verbose=False)
 
     for W in window_sizes:
-        constraints = [SegmentationMaxDiversity(segmentation_property=segmentation_property, max_items=1, window_size=W, weight=1.0, verbose=False)]
+        constraints = [MaxSegmentsPerSegmentationConstraint(segmentation_property=segmentation_property, max_items=1, window_size=W, weight=1.0, verbose=False)]
         print(f"Trying Window size: {W}")
         total_recall = 0.0
         total_recall_constrained = 0.0
