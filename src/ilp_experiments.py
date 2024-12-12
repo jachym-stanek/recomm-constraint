@@ -6,8 +6,9 @@ import seaborn as sns
 import pandas as pd
 import json
 
+from matplotlib.lines import segment_hits
+
 from src.algorithms.ILP import ILP
-from src.plot_ALS_results import result
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
     ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, MinSegmentsPerSegmentationConstraint, MaxSegmentsPerSegmentationConstraint, \
@@ -795,12 +796,12 @@ def ILP_2D_constraints_test():
     items = [items1, items2, items3, items4]
     segment1 = Segment('segment1', 'test-property', *list(items1.keys())[:50])
     segment2 = Segment('segment2', 'test-property', *list(items1.keys())[50:])
-    segments = [segment1, segment2]
-    constraints = [[MinSegmentsPerSegmentationConstraint('test-property', 2, 3)], [], [], []]
+    segments = {segment1.id: segment1, segment2.id: segment2}
+    constraints = [[MinSegmentsPerSegmentationConstraint('test-property', 1, 3)], [], [], []]
     constraints2D = [ItemUniqueness2D(width=10, height=3)]
 
     start_time = time.time()
-    result = solver.solve_2D_constraints(items, {}, constraints, constraints2D, N)
+    result = solver.solve_2D_constraints(items, segments, constraints, constraints2D, N)
     elapsed_time = (time.time() - start_time)*1000
     print(f"Elapsed time for large test: {elapsed_time:.4f} milliseconds")
 
@@ -820,12 +821,239 @@ def ILP_2D_constraints_test():
 
     for i, constraints in enumerate(constraints):
         for constraint in constraints:
-            if not constraint.check_constraint({j+1: result[i, j+1] for j in range(N)}, items[i], {}):
+            if not constraint.check_constraint({j+1: result[i, j+1] for j in range(N)}, items[i], segments):
                 print(f"Constraint {constraint} is not satisfied.")
             else:
                 print(f"Constraint {constraint} is satisfied.")
 
+def ILP_2D_constraints_test_preprocessing():
+    solver = ILP(verbose=True)
 
+    # test preprocessing works for 2D item uniqueness constraint
+    print("=============== Test 1 - item uniqueness only ===============")
+    N = 10
+    items1 = {f'item-{i}': i+1 for i in range(0, 15)}
+    items2 = {f'item-{i}': 20 - i for i in range(5, 20)}
+    items3 = {f'item-{i}': i+1 for i in range(0, 15)}
+    items = [items1, items2, items3]
+    constraints = [[], [], []]
+    segments = {}
+    item_segment_map = {}
+    constraints2D = [ItemUniqueness2D(width=5, height=2)]
+    filtered_items = solver.preprocess_items_2D(items, segments, constraints, constraints2D, N, item_segment_map)
+
+    print(f"Filtered items lens: {[len(filtered) for filtered in filtered_items]}")
+    for i, filtered in enumerate(filtered_items):
+        print(f"Row {i+1}: {filtered}")
+
+    start_time = time.time()
+    result = solver.solve_2D_constraints(filtered_items, segments, constraints, constraints2D, N)
+    elapsed_time = (time.time() - start_time) * 1000
+    print(f"Elapsed time for large test: {elapsed_time:.4f} milliseconds")
+    check_constraints_and_print_2D(result, items, segments, constraints, constraints2D, N)
+
+    # test preprocessing works for 2D item uniqueness constraint with a large amount of items
+    print("=============== Test 2 - item uniqueness only, large amount of items ===============")
+    N = 20
+    items1 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 150)}
+    items2 = {f'item-{i}': random.uniform(0, 1) for i in range(50, 200)}
+    items3 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 150)}
+    items4 = {f'item-{i}': random.uniform(0, 1) for i in range(50, 200)}
+    items = [items1, items2, items3, items4]
+    constraints = [[], [], [], []]
+    segments = {}
+    item_segment_map = {}
+    constraints2D = [ItemUniqueness2D(width=10, height=3)]
+    filtered_items = solver.preprocess_items_2D(items, segments, constraints, constraints2D, N, item_segment_map)
+
+    print(f"Filtered items lens: {[len(filtered) for filtered in filtered_items]}")
+    start_time = time.time()
+    result = solver.solve_2D_constraints(filtered_items, segments, constraints, constraints2D, N)
+    elapsed_time = (time.time() - start_time) * 1000
+    print(f"Elapsed time for preprocessing large test: {elapsed_time:.4f} milliseconds, score: {count_2D_score(result, items, N)}")
+    check_constraints_and_print_2D(result, items, segments, constraints, constraints2D, N)
+    start_time = time.time()
+    result = solver.solve_2D_constraints(items, segments, constraints, constraints2D, N)
+    elapsed_time = (time.time() - start_time) * 1000
+    print(f"Elapsed time for large test without preprocessing: {elapsed_time:.4f} milliseconds, score: {count_2D_score(result, items, N)}")
+
+    # test 3 - mix 1D and 2D constraints
+    print("=============== Test 3 - mixed constraints, large amount of items ===============")
+    N = 20
+    items1 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 400)}
+    items2 = {f'item-{i}': random.uniform(0, 1) for i in range(200, 600)}
+    items3 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 400)}
+    items4 = {f'item-{i}': random.uniform(0, 1) for i in range(200, 600)}
+    items = [items1, items2, items3, items4]
+    segment1 = Segment('segment1', 'test-property', *[f'item-{i}' for i in range(0, 600, 2)])
+    segment2 = Segment('segment2', 'test-property', *[f'item-{i}' for i in range(1, 600, 2)])
+    segments = {segment1.id: segment1, segment2.id: segment2}
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+    constraints1 = [ MaxSegmentsPerSegmentationConstraint(segmentation_property='test-property', max_items=3, window_size=5) ]
+    constraints2 = [ MinSegmentsPerSegmentationConstraint(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2) ]
+    constraints3 = [ MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=5) ]
+    constraints4 = [ MaxItemsPerSegmentConstraint(segment_id='segment1', max_items=1, window_size=5) ]
+    constraints1D = [constraints1, constraints2, constraints3, constraints4]
+    constraints2D = [ ItemUniqueness2D(width=10, height=2) ]
+    filtered_items = solver.preprocess_items_2D(items, segments, constraints1D, constraints2D, N, item_segment_map)
+
+    print(f"Filtered items lens: {[len(filtered) for filtered in filtered_items]}")
+    start_time = time.time()
+    result = solver.solve_2D_constraints(filtered_items, segments, constraints1D, constraints2D, N)
+    elapsed_time = (time.time() - start_time) * 1000
+    print(
+        f"Elapsed time for preprocessing large test: {elapsed_time:.4f} milliseconds, score: {count_2D_score(result, items, N)}")
+    check_constraints_and_print_2D(result, items, segments, constraints1D, constraints2D, N)
+    start_time = time.time()
+    result = solver.solve_2D_constraints(items, segments, constraints1D, constraints2D, N)
+    elapsed_time = (time.time() - start_time) * 1000
+    print(
+        f"Elapsed time for large test without preprocessing: {elapsed_time:.4f} milliseconds, score: {count_2D_score(result, items, N)}")
+
+def check_constraints_and_print_2D(result, items, segments, constraints, constraints2D, N):
+    # print solution
+    for i in range(len(items)):
+        print(f"Row {i + 1}:", end=" ")
+        for j in range(N):
+            print(f"{result[i, j + 1]}".ljust(10), end=" ")
+        print()
+
+    # check if the solution satisfies the constraints
+    for constraint in constraints2D:
+        if not constraint.check_constraint(result, len(items), N):
+            print(f"Constraint {constraint} is not satisfied.")
+        else:
+            print(f"Constraint {constraint} is satisfied.")
+
+    for i, constraints in enumerate(constraints):
+        for constraint in constraints:
+            if not constraint.check_constraint({j + 1: result[i, j + 1] for j in range(N)}, items[i], segments):
+                print(f"Constraint {constraint} is not satisfied.")
+            else:
+                print(f"Constraint {constraint} is satisfied.")
+
+def count_2D_score(result, items, N):
+    total_score = 0
+    for i in range(len(items)):
+        for j in range(N):
+            item_id = result[i, j+1]
+            if item_id:
+                total_score += items[i][item_id]
+    return total_score
+
+def check_constraints(recommended_items, items, segments, constraints):
+    all_constraints_satisfied = True
+    for constraint in constraints:
+        if not constraint.check_constraint(recommended_items, items, segments):
+            all_constraints_satisfied = False
+            break
+
+    return all_constraints_satisfied
+
+
+def run_test_all_approaches(test_name, solver, items, segments, constraints, N, M, partition_sizes: list, using_soft_constraints=False,
+                            verbose=False, run_normal=True):
+    results = {"normal": dict(), "preprocessing": dict(), "partitioning": dict()}
+    if run_normal:
+        start_time_normal = time.time()
+        solution = solver.solve(items, segments, constraints, N)
+        results["normal"]["time"] = (time.time() - start_time_normal)*1000
+        results["normal"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+        results["normal"]["score"] = sum([items[item_id] for item_id in solution.values()])
+
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+
+    start_time_preprocessing = time.time()
+    filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+    solution = solver.solve(filtered_items, segments, constraints, N)
+    results["preprocessing"]["time"] = (time.time() - start_time_preprocessing)*1000
+    results["preprocessing"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+    results["preprocessing"]["score"] = sum([items[item_id] for item_id in solution.values()])
+
+    for p in partition_sizes:
+        try:
+            start_time_partitioning = time.time()
+            temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+            # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+            solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p, item_segment_map=temp_item_segment_map)
+            results["partitioning"][f"{p}"] = dict()
+            results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
+            results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+            results["partitioning"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        except Exception as e:
+            print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
+    if verbose:
+        print(f"\n=== {test_name} ===")
+        if run_normal:
+            print("Normal:")
+            print(f"Time: {results['normal']['time']:.4f} ms")
+            print(f"Constraints satisfied: {results['normal']['constraints_satisfied']}")
+            print(f"Total score: {results['normal']['score']:.1f}")
+        print("Preprocessing:")
+        print(f"Time: {results['preprocessing']['time']:.4f} ms")
+        print(f"Constraints satisfied: {results['preprocessing']['constraints_satisfied']}")
+        print(f"Total score: {results['preprocessing']['score']:.1f}")
+        for key, value in results["partitioning"].items():
+            print(f"Partition size: {key}")
+            print(f"Time: {value['time']:.4f} ms")
+            print(f"Constraints satisfied: {value['constraints_satisfied']}")
+            print(f"Total score: {value['score']:.1f}")
+    return results
+
+
+# compare all 3 approaches (no preprocessing, preprocessing, preprocessing + partitioning) in terms of time efficiency
+# and quality of the solution (total score)
+def compare_ILP_approaches():
+    # small recomm numbers
+    num_recomms = [10, 20]
+    num_candidates = [100, 200, 300, 500]
+    partition_sizes = [5, 8]
+    num_segments = 10
+    results = dict()
+    solver = ILP(verbose=False)
+    test_verbose = True
+    for M in num_candidates:
+        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+        segment_size = M // num_segments
+        segments = {f'segment{i}': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
+
+        for N in num_recomms:
+            if M <= N:
+                continue
+            constraints = [
+                MinSegmentsPerSegmentationConstraint('test-prop', 1, 10),
+                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 10)
+            ]
+            results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver,
+                                                             items, segments, constraints, N, M, partition_sizes, verbose=test_verbose)
+
+    num_recomms = [50, 100, 200]
+    num_candidates = [100, 200, 300, 500, 1000, 5000, 10000]
+    partition_sizes = [5, 8, 10, 15, 20, 25, 30]
+    num_segments = 20
+    for M in num_candidates:
+        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+        segment_size = M // num_segments
+        segments = {f'segment{i}': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
+
+        for N in num_recomms:
+            if M <= N:
+                continue
+            run_test_case_normal = True
+            if N >= 200 or M >= 300:
+                run_test_case_normal = False
+
+            constraints = [
+                MinSegmentsPerSegmentationConstraint('test-prop', 1, 25),
+                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 30)
+            ]
+            results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, items, segments,
+                                                      constraints, N, M, partition_sizes, verbose=test_verbose, run_normal=run_test_case_normal)
+
+    # save results to a file
+    with open('results_ILP_compare_approaches.txt', 'w') as f:
+        for key, value in results.items():
+            f.write(f"{key}: {value}\n")
 
 if __name__ == "__main__":
     # main()
@@ -834,11 +1062,13 @@ if __name__ == "__main__":
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
     # ILP_solve_with_already_recommeded_items_test()
-    ILP_partitioning_test()
+    # ILP_partitioning_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
     # ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
+    # compare_ILP_approaches()
+    ILP_2D_constraints_test_preprocessing()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi

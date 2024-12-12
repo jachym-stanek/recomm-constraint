@@ -363,7 +363,7 @@ class ILP(Algorithm):
         if self.verbose:
             print(
                 f"[{self.name}] Solving ILP with 2D constraints, {len(items)} candidate item pools, {len(segments)} segments,"
-                f" {len(constraints)} constraints, {len(constraints2D)} 2D constraints, row length={N}.")
+                f" {sum(len(c) for c in constraints)} 1D constraints, {len(constraints2D)} 2D constraints, row length={N}.")
 
         model = Model("RecommenderSystem")
         model.setParam('OutputFlag', 0)  # Suppress Gurobi output
@@ -445,3 +445,66 @@ class ILP(Algorithm):
             print(f"[{self.name}] Finished in {(end - start) * 1000:.2f} ms")
 
         return result
+
+    def preprocess_items_2D(self, items: List[Dict[str, float]], segments: Dict[str, Segment], constraints: List[List[Constraint]],
+                              constraints2D: List[Constraint2D], N: int, item_segment_map: Dict[str, str]) -> List[Dict[str, float]]:
+        start = time.time()
+
+        candidate_items = [dict() for _ in range(len(items))]
+
+        # First preprocess items for each row using each row's constraints
+        for r, item_pool in enumerate(items):
+            candidate_items[r] = self.preprocess_items(item_pool, segments, segments, constraints[r], item_segment_map,
+                                                       N)
+
+        # ensure each item uniqueness 2D constraint has enough items
+        for constraint in constraints2D:
+            if isinstance(constraint, ItemUniqueness2D):
+                self.preprocess_item_uniqueness(constraint, items, candidate_items, N)
+
+        if self.verbose:
+            print(f"[ILP] Time taken for 2D item preprocessing: {(time.time() - start)*1000} milliseconds")
+
+        return candidate_items
+
+    # check if there is enough items to satisfy the item uniqueness constraint
+    # if not add enough items into candidates to satisfy the constraint
+    def preprocess_item_uniqueness(self, constraint: ItemUniqueness2D, item_pools: List[Dict[str, float]],
+                                   candidate_items: List[Dict[str, float]], N: int):
+        W = constraint.width
+        H = constraint.height
+        R = len(candidate_items)
+
+        for r in range(R):
+            row_above_start = max(0, r - H + 1)
+            row_below_end = min(R, r + H)
+            number_of_unique_items = self.count_num_unique(candidate_items[r], candidate_items, r, row_above_start, row_below_end)
+
+            # keep adding items until there is enough to satisfy the constraint, or we run out of items
+            ordered_items = sorted(item_pools[r].items(), key=lambda x: x[1], reverse=True)
+            for item, score in ordered_items:
+                if number_of_unique_items >= N:
+                    break
+                if item in candidate_items[r]:
+                    continue
+                if self.is_item_unique(item, candidate_items, r, row_above_start, row_below_end):
+                    candidate_items[r][item] = score
+                    number_of_unique_items += 1
+
+    def count_num_unique(self, items: Dict[str, float], candidate_items: List[Dict[str, float]], r: int, row_above_start: int,
+                         row_below_end: int) -> int:
+        num_unique = 0
+        for item in items:
+            if self.is_item_unique(item, candidate_items, r, row_above_start, row_below_end):
+                num_unique += 1
+        return num_unique
+
+    def is_item_unique(self, item_id, candidate_items: List[Dict[str, float]], r: int, row_above_start: int,
+                       row_below_end: int) -> bool:
+        for i in range(row_above_start, row_below_end):
+            if i == r:
+                continue
+            if item_id in candidate_items[i]:
+                return False
+        return True
+
