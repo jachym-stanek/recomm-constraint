@@ -18,7 +18,7 @@ class ILP(Algorithm):
         super().__init__(name, description, verbose)
 
     def solve_by_partitioning(self, items: Dict[str, float], segments: Dict[str, Segment], constraints: List[Constraint], N: int,
-                              partition_size: int, item_segment_map: Dict[str, str]):
+                              partition_size: int, item_segment_map: Dict[str, str], use_doubling: bool = False):
         start_time = time.time()
 
         temp_item_segment_map = item_segment_map.copy()
@@ -39,7 +39,11 @@ class ILP(Algorithm):
         while len(final_result) < N:
             if self.verbose:
                 print("===================================== Partitioning ======================================")
-            partition_count = min(partition_size, N - len(final_result))
+            if use_doubling:
+                partition_count = min(partition_size * 2, N - len(final_result))
+            else:
+                partition_count = min(partition_size, N - len(final_result))
+
             remaining_recomm_len = N - len(final_result)
             partition_constraints = []
             for constraint in constraints:
@@ -74,9 +78,14 @@ class ILP(Algorithm):
             # already_recommended_segments_count = {segment: already_recommended_segments.count(segment) for segment in set(already_recommended_segments)}
             # candidates_segments_count = {segment: candidates_segments.count(segment) for segment in set(candidates_segments)}
             # print(f"[ILP] Already recommended segments: {already_recommended_segments}, \nCandidate segments: {candidates_segments}")
-            # print(f"[ILP] Already recommended segments count: {dict(sorted(already_recommended_segments_count.items()))}, \nCandidate segments count: {dict(sorted(candidates_segments_count.items()))}")
+            # print(f"Already recommended segments count: {dict(sorted(already_recommended_segments_count.items(), key=lambda x: (x[0].rstrip('0123456789'), int(x[0][len(x[0].rstrip('0123456789')):]))))}, \nCandidate segments count:           {dict(sorted(candidates_segments_count.items(), key=lambda x: (x[0].rstrip('0123456789'), int(x[0][len(x[0].rstrip('0123456789')):]))))}")
 
             partition_result = self.solve(partition_candidates, segments, partition_constraints, partition_count, already_recommended_items)
+
+            # take only half
+            if use_doubling:
+                taken_until = min(partition_size, len(partition_result))
+                partition_result = {k: v for k, v in partition_result.items() if k <= taken_until}
 
             # Add the inner result to the final result and remove the recommended items from the candidate list
             for position, item in partition_result.items():
@@ -239,10 +248,6 @@ class ILP(Algorithm):
             item_segment = item_segment_map.get(item)
 
             # decide if to add item - if we do not have enough items or there is a minimum constraint that is not satisfied
-            # if ((remaining_recomm_len is not None and (len(candidate_items) < N or item_segment in min_satisfied) and not
-            #     (item_segment in min_satisfied and min_satisfied[item_segment])
-            #         or (all(min_satisfied.values()) and len(candidate_items) < N))  # do not take items that have not satisfied min constraints (if we have more partitions on the way
-            #         or (remaining_recomm_len is None and (len(candidate_items) < N or (item_segment in min_satisfied and not min_satisfied[item_segment])))): # no consecutive recomms -> cam afford to be greedy
             if self._decision_function(remaining_recomm_len, candidate_items, N, item_segment, min_satisfied):
                 candidate_items[item] = score
 
@@ -275,9 +280,11 @@ class ILP(Algorithm):
         return candidate_items
 
     def _decision_function(self, remaining_recomm_len, candidate_items, N, item_segment, min_satisfied) -> bool:
+        # do not take items that have not satisfied min constraints (if we have more partitions on the way
         case1 = (remaining_recomm_len is not None and (len(candidate_items) < N or item_segment in min_satisfied) and not
                 (item_segment in min_satisfied and min_satisfied[item_segment])
                     or (all(min_satisfied.values()) and len(candidate_items) < N))
+        # no consecutive recomms -> cam afford to be more greedy
         case2 = (remaining_recomm_len is None and (len(candidate_items) < N or (item_segment in min_satisfied and not min_satisfied[item_segment])))
         return case1 or case2
 
@@ -507,4 +514,3 @@ class ILP(Algorithm):
             if item_id in candidate_items[i]:
                 return False
         return True
-

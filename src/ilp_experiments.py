@@ -5,8 +5,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 import json
-
-from matplotlib.lines import segment_hits
+import pickle
 
 from src.algorithms.ILP import ILP
 from src.segmentation import Segment
@@ -22,7 +21,8 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
     segments_id_dict = {seg.id: seg for seg in segments}
     item_segment_map = {item_id: seg_id for seg_id, segment in segments_id_dict.items() for item_id in segment}
     if partition_size is not None:
-        recommended_items = solver.solve_by_partitioning(items, segments_id_dict, constraints, N, partition_size=partition_size, item_segment_map=item_segment_map)
+        recommended_items = solver.solve_by_partitioning(items, segments_id_dict, constraints, N, partition_size=partition_size,
+                                                         item_segment_map=item_segment_map, use_doubling=False)
     else:
         recommended_items = solver.solve(items, segments_id_dict, constraints, N, already_recommended_items)
     print(f"Recommended Items: {recommended_items}")
@@ -514,7 +514,7 @@ def ILP_solve_with_already_recommeded_items_test():
 
 
 def ILP_partitioning_test():
-    verbose = False
+    verbose = True
     solver = ILP(verbose=verbose)
     num_items = 1000
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, num_items+1)}
@@ -581,13 +581,35 @@ def ILP_partitioning_test():
     run_test_preprocessing("Test Case 6 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
     run_test("Test Case 6a partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
 
-    # Test case 7 - try larger partition size
+    # Test case 6b - try larger partition size
     partition_size = 20
     run_test("Test Case 6b partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
 
-    # Test case 8 - try smaller partition size
+    # Test case 6c - try smaller partition size
     partition_size = 5
     run_test("Test Case 6c partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+
+    # Test case 6d - try partition size larger than window size
+    partition_size = 30
+    run_test("Test Case 6d partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+
+    # Test case 7 - erroneous case for p in {10, 25, 30} - possible could not be solved because unless we order items in a specific
+    # way (not greedily) there might not be a solution for next partition
+    N = 50
+    M = 100
+    num_segments = 20
+    constraints = [
+        MinSegmentsPerSegmentationConstraint('test-prop', 1, 25, weight=0.9),
+        MaxSegmentsPerSegmentationConstraint('test-prop', 2, 30, weight=0.9)
+    ]
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
+    segment_size = M // num_segments
+    segments = [Segment(f'segment{i}', 'test-prop',
+                                       *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in
+                range(num_segments)]
+    for p in [ 25, 30]:
+        run_test(f"Test Case 7 partitioning p={p}", solver, items, segments, constraints, N, partition_size=p, verbose=verbose)
+
 
 def ILP_partitioning_time_efficiency():
     num_recomms = [10, 50, 100, 200, 300]
@@ -720,6 +742,15 @@ def ILP_solve_for_overlapping_segments():
         MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
     ]
     run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=False)
+
+    items = {f'item-{i}': i for i in range(1, 21)}
+    segment1 = Segment('segment1', 'test-prop', *list(items.keys())[5:])
+    segment2 = Segment('segment2', 'test-prop', 'item-20', 'item-19', 'item-18', 'item-17', 'item-16')
+    segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
+    segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
+    N = 6
+    constraints = [ MaxSegmentsPerSegmentationConstraint(segmentation_property='test-prop', max_items=3, window_size=N) ]
+    run_test_preprocessing("Test Case 2", solver, items, [segment1, segment2, segment3, segment4], constraints, N, verbose=True)
 
 
 def ILP_2D_constraints_test():
@@ -1021,8 +1052,8 @@ def compare_ILP_approaches():
             if M <= N:
                 continue
             constraints = [
-                MinSegmentsPerSegmentationConstraint('test-prop', 1, 10),
-                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 10)
+                MinSegmentsPerSegmentationConstraint('test-prop', 1, 10, weight=0.9),
+                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 10, weight=0.9)
             ]
             results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver,
                                                              items, segments, constraints, N, M, partition_sizes, verbose=test_verbose)
@@ -1044,16 +1075,97 @@ def compare_ILP_approaches():
                 run_test_case_normal = False
 
             constraints = [
-                MinSegmentsPerSegmentationConstraint('test-prop', 1, 25),
-                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 30)
+                MinSegmentsPerSegmentationConstraint('test-prop', 1, 25, weight=0.9),
+                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 30, weight=0.9)
             ]
             results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, items, segments,
                                                       constraints, N, M, partition_sizes, verbose=test_verbose, run_normal=run_test_case_normal)
 
     # save results to a file
-    with open('results_ILP_compare_approaches.txt', 'w') as f:
-        for key, value in results.items():
-            f.write(f"{key}: {value}\n")
+    with open("results_ILP_compare_approaches.pkl", "wb") as file:
+        pickle.dump(results, file)
+
+def plot_results_all_approaches(results_file: str):
+    # Load the results from the file
+    results = dict()
+    with open(results_file, "rb") as file:
+        results = pickle.load(file)
+
+    # Convert the results dictionary into a pandas DataFrame for easier manipulation
+    data = []
+    for (M, N), results in results.items():
+        for approach, result in results.items():
+            if approach == "normal":
+                if len(result) == 0:
+                    continue
+                data.append({'M': M, 'N': N, "p": None, 'Approach': 'Normal', 'Time': result['time'], 'ConstraintsSatisfied': result['constraints_satisfied'], 'Score': result['score']})
+            elif approach == "preprocessing":
+                data.append({'M': M, 'N': N, "p": None, 'Approach': 'Preprocessing', 'Time': result['time'], 'ConstraintsSatisfied': result['constraints_satisfied'], 'Score': result['score']})
+            else:
+                for partition_size, partition_result in result.items():
+                    data.append({'M': M, 'N': N, "p": partition_size, 'Approach': f"Partitioning ({partition_size})", 'Time': partition_result['time'], 'ConstraintsSatisfied': partition_result['constraints_satisfied'], 'Score': partition_result['score']})
+    df = pd.DataFrame(data)
+    print(df)
+
+    # Set a plotting style
+    sns.set_style("whitegrid")
+
+    # 1. Effect of Partition Size (P) on time and score
+    # x axis is time, y axis is score, each point represents different value of p, and is annotated
+    # plot for N=50 and M=500
+    fixed_M = 500
+    fixed_N = 50
+    df_fixed = df[(df['M'] == fixed_M) & (df['N'] == fixed_N)]
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(data=df_fixed, x='Time', y='Score', hue='Approach', style='Approach', markers=True)
+    for i in range(len(df_fixed)):
+        plt.text(df_fixed['Time'].iloc[i], df_fixed['Score'].iloc[i], df_fixed['p'].iloc[i])
+    plt.title(f"Effect of Partition Size (P) on Time and Score\n(M={fixed_M}, N={fixed_N})")
+    plt.xlabel("Time (milliseconds)")
+    plt.ylabel("Total Score")
+    plt.tight_layout()
+    plt.show()
+
+
+    # 2. Effect of partition size of constraint satisfaction
+    # For each partition size plot the percentage of constraints satisfied (count for all N and M)
+    df_partitioning = df[df['Approach'].str.contains("Partitioning")]
+    df_partitioning = df_partitioning.groupby(['Approach'], as_index=False)['ConstraintsSatisfied'].mean() * 100
+    # rename p to Partition Size and transform the values to not be repeated
+    df_partitioning.rename(columns={'Approach': 'Partition Size'}, inplace=True)
+    df_partitioning['Partition Size'] = df_partitioning['Partition Size'].apply(lambda x: x.split("(")[1].split(")")[0])
+    print(df_partitioning)
+    plt.figure(figsize=(16, 10))
+    sns.barplot(data=df_partitioning, x='Partition Size', y='ConstraintsSatisfied')
+    plt.title(f"Effect of Partition Size (P) on Constraints Satisfaction")
+    plt.xlabel("Partition Size (P)")
+    plt.ylabel("Constraints Satisfaction (%)")
+    plt.show()
+
+    # 3. Effect of N on time for different partition sizes, use fixed M = 500
+    fixed_M = 500
+    df_fixed = df[(df['M'] == fixed_M)]
+    df_fixed = df_fixed[df_fixed['Approach'].str.contains("Partitioning")]
+    plt.figure(figsize=(12, 8))
+    sns.lineplot(data=df_fixed, x='N', y='Time', hue='Approach', style='Approach', markers=True)
+    plt.title(f"Effect of Number of Recommendations (N) on Time\n(M={fixed_M})")
+    plt.xlabel("Number of Recommendations (N)")
+    plt.ylabel("Time (milliseconds)")
+    plt.tight_layout()
+    plt.show()
+
+    # 4. Effect of M on time for different partition sizes, use fixed N = 50
+    fixed_N = 50
+    df_fixed = df[(df['N'] == fixed_N)]
+    df_fixed = df_fixed[df_fixed['Approach'].str.contains("Partitioning")]
+    plt.figure(figsize=(12, 8))
+    sns.lineplot(data=df_fixed, x='M', y='Time', hue='Approach', style='Approach', markers=True)
+    plt.title(f"Effect of Number of Candidates (M) on Time\n(N={fixed_N})")
+    plt.xlabel("Number of Candidates (M)")
+    plt.ylabel("Time (milliseconds)")
+    plt.tight_layout()
+    plt.show()
+
 
 if __name__ == "__main__":
     # main()
@@ -1068,7 +1180,8 @@ if __name__ == "__main__":
     # ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
-    ILP_2D_constraints_test_preprocessing()
+    plot_results_all_approaches('results_ILP_compare_approaches.pkl')
+    # ILP_2D_constraints_test_preprocessing()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi

@@ -168,3 +168,4 @@ src/results*.txt
 src/*.png
 *.png
 src/*.json
+src/*.pkl
