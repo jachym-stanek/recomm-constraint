@@ -21,7 +21,7 @@ class BaseModel:
     def train(self, rating_matrix):
         raise NotImplementedError("Train method not implemented.")
 
-    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, K: int, test_user: bool = True,
+    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, test_user: bool = True,
                     cold_start: bool = False, precomputed_similarities=None):
             raise NotImplementedError("Recommend method not implemented.")
 
@@ -56,14 +56,14 @@ class ALSModel(BaseModel):
         # Train the model
         self.model.fit(rating_matrix * self.alpha)
 
-    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, K: int, test_user: bool = True,
+    def recommend(self, user: int, user_observation: csr_matrix, observed_items: list, N: int, test_user: bool = True,
                   cold_start: bool = False, precomputed_similarities=None):
         if test_user:
             # Test user: Find similar items using item-based k-NN
             if precomputed_similarities is not None:
-                recommended = self.item_knn.nearest_neighbors_precomputed(observed_items, precomputed_similarities, N, K)
+                recommended = self.item_knn.nearest_neighbors_precomputed(observed_items, precomputed_similarities, N)
             else:
-                recommended = self.item_knn.nearest_neighbors(observed_items, self.model.item_factors, N, K)
+                recommended = self.item_knn.nearest_neighbors(observed_items, self.model.item_factors, N)
         elif cold_start:
             # Cold-start user: Recalculate user factors based on observed items
             # Generate recommendations using the recalculated user

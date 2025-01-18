@@ -73,7 +73,7 @@ class SegmentationExtractor:
 
         # Create a dictionary to hold segments
         segments = {}
-        for item in tqdm(self.items, desc=f"Extracting segments for '{segmentation_property}'", unit="item"):
+        for item in tqdm(self.items, desc=f"[SegmentationExtractor] Extracting segments for '{segmentation_property}'", unit="item"):
             item_id = item['item_id']
             item_idx = self.item_id2idx.get(str(item_id))
             property_value = item.get(segmentation_property) if item.get(segmentation_property) is not None else 'NULL'
@@ -92,7 +92,7 @@ class SegmentationExtractor:
                 segments[property_value].add(item_idx)
 
         # Return a list of Segmentation objects
-        self.segments = list(segments.values())
+        self.segments = segments
 
     def get_segments(self):
         return self.segments

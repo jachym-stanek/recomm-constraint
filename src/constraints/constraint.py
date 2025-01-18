@@ -243,7 +243,7 @@ class ItemAtPositionConstraint(Constraint):
         else:
             # Hard constraint
             model.addConstr(
-                x[self.item_id, row, self.position] == 1,
+                x[self.item_id, row, self.position] >= 1,
                 name=f"{self.name}_{self.position}"
             )
 

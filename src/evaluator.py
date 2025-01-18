@@ -1,5 +1,4 @@
 # evaluator.py
-from traceback import print_tb
 from typing import List
 
 import numpy as np
@@ -18,14 +17,14 @@ class Evaluator:
         self.log_every = settings.log_every
         self.num_hidden = settings.recommendations['num_hidden'] # how many hidden items to evaluate recall@N per user
 
-    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, K=5, N=10):
+    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10, take_random_hidden=False):
         print(f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall = 0.0
         user_count = 0
         total_items_recommended = set()
         skipped_users = 0
 
-        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors, K)
+        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors)
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
@@ -41,7 +40,10 @@ class Evaluator:
             for i in range(self.num_hidden):
                 if len(not_yet_hidden) == 0:
                     break
-                hidden_item = np.random.choice(list(not_yet_hidden))
+                if take_random_hidden:
+                    hidden_item = np.random.choice(list(not_yet_hidden))
+                else:
+                    hidden_item = user_relevant_items[i]
                 not_yet_hidden.remove(hidden_item)
                 observed_items = set(user_interaction_vector)
                 observed_items.remove(hidden_item)
@@ -51,7 +53,7 @@ class Evaluator:
                 # Generate recommendations
                 # print(f"obsrvation vector: {user_observation}")
                 # print(f"[Evaluator] User {user}, Dims of user obs: {user_observation.shape}, Observations: {observed_items}")
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, K=K, precomputed_similarities=precomputed_similarities, test_user=True)
+                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, precomputed_similarities=precomputed_similarities, test_user=True)
                 # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms}")
                 # print values of recommeded items in the user observation
                 # print(f"recommended items: {user_observation[0, recomms].toarray()}")
@@ -94,7 +96,7 @@ class Evaluator:
                 print(f"[Evaluator] Hidden item {hidden_items}, Recommendations: {recomms}")
 
     def evaluate_constrained_model(self, train_dataset: Dataset, test_dataset: Dataset, segmentation_extractor: SegmentationExtractor,
-                                   constraints: List[Constraint], model, K=5, N=10, M=100):
+                                   constraints: List[Constraint], model, N=10, M=100, take_random_hidden=False):
         print(
             f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall= 0.0
@@ -104,7 +106,7 @@ class Evaluator:
         total_items_recommended_constrained = set()
         skipped_users = 0
 
-        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors, K)
+        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors)
         solver = ILP(verbose=False)
 
         for user in range(len(test_dataset)):
@@ -122,7 +124,10 @@ class Evaluator:
             for i in range(self.num_hidden):
                 if len(not_yet_hidden) == 0:
                     break
-                hidden_item = np.random.choice(list(not_yet_hidden))
+                if take_random_hidden:
+                    hidden_item = np.random.choice(list(not_yet_hidden))
+                else:
+                    hidden_item = user_relevant_items[i]
                 not_yet_hidden.remove(hidden_item)
                 observed_items = set(user_interaction_vector)
                 observed_items.remove(hidden_item)
@@ -130,14 +135,14 @@ class Evaluator:
                 user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
 
                 # Generate M candidate items
-                inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M, K=K,
+                inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M,
                                                   precomputed_similarities=precomputed_similarities, test_user=True)
 
                 # select 10 items with the highest scores
                 recomms_no_constraints = inner_recomms[:N]
 
                 canditates = {item: score for item, score in zip(inner_recomms, scores)}
-                recomm_segments = segmentation_extractor.get_segments_for_recomms(inner_recomms)
+                recomm_segments = segmentation_extractor.get_segments()
 
                 recomms_constrained = solver.solve(canditates, recomm_segments, constraints, N)
                 if recomms_constrained is None:

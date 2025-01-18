@@ -19,7 +19,7 @@ class ItemKnn(Algorithm):
     Select the top K items with the highest sum of similarities.
     Similarity is measured using cosine similarity.
     """
-    def nearest_neighbors(self, items: list, embeddings, N: int, K: int):
+    def nearest_neighbors(self, items: list, embeddings, N: int):
         num_items, embedding_dim = embeddings.shape
         accumulated_similarities = np.zeros(num_items)
 
@@ -51,7 +51,7 @@ class ItemKnn(Algorithm):
 
         return top_K_indices, scores
 
-    def nearest_neighbors_precomputed(self, items: list, similarities, N: int, K: int):
+    def nearest_neighbors_precomputed(self, items: list, similarities, N: int):
         # num_items = len(similarities)
         # accumulated_similarities = np.zeros(num_items)
         #
@@ -72,7 +72,7 @@ class ItemKnn(Algorithm):
 
         recommended_items = {}
         for item in items:
-            similar_items = similarities[item]  # Get top K similar items
+            similar_items = similarities[item]  # Get similar items to user's interacted items
             for sim_item in similar_items:
                 if sim_item not in items and sim_item not in recommended_items:
                     recommended_items[sim_item] = similarities[item][sim_item]
@@ -83,7 +83,7 @@ class ItemKnn(Algorithm):
         items, scores = zip(*recommendations)
         return items[:N], scores[:N]
 
-    def compute_similarities(self, item_embeddings, K):
+    def compute_similarities(self, item_embeddings):
         print("[ItemKnn] Computing item similarities...")
         start = time.time()
 
@@ -115,7 +115,7 @@ class ItemKnn(Algorithm):
             # Exclude the item itself by setting its similarity to -inf
             sim_scores[item_id] = -np.inf
             # Get indices of top K similar items
-            neighbors = np.argpartition(-sim_scores, K)[:K]
+            neighbors = np.argpartition(-sim_scores, self.K)[:self.K]
             # Sort neighbors by similarity score
             neighbors = neighbors[np.argsort(-sim_scores[neighbors])]
             neighbors_scores = sim_scores[neighbors]

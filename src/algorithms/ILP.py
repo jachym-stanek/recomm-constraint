@@ -4,8 +4,6 @@ import time
 from gurobipy import Model, GRB, quicksum
 from typing import Dict, List, Set
 
-from sklearn.utils import deprecated
-
 from src.algorithms.algorithm import Algorithm
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
@@ -197,7 +195,7 @@ class ILP(Algorithm):
                          items_remaining_per_segment: Dict[str, Segment],
                          segments: Dict[str, Segment],
                          constraints: List[Constraint],
-                         item_segment_map: Dict[str, str], # map item_id to segment_id TODO: address that items can be part of multiple segments
+                         item_segment_map: Dict[str, list], # map item_id to all item segment ids
                          N: int, remaining_recomm_len: int = None,
                          previous_recommended_items: List[str] = None,
                          verbose=False) -> Dict[str, float]:
@@ -245,19 +243,21 @@ class ILP(Algorithm):
         idx = 0
         while True:
             item, score = sorted_items[idx]
-            item_segment = item_segment_map.get(item)
+            item_segments = item_segment_map.get(item)
 
-            # decide if to add item - if we do not have enough items or there is a minimum constraint that is not satisfied
-            if self._decision_function(remaining_recomm_len, candidate_items, N, item_segment, min_satisfied):
-                candidate_items[item] = score
+            for item_segment in item_segments:
+                # decide if to add item - if we do not have enough items or there is a minimum constraint that is not satisfied
+                if self._decision_function(remaining_recomm_len, candidate_items, N, item_segment, min_satisfied):
+                    candidate_items[item] = score
 
-                if item_segment is not None:
-                    added_items_per_segment[item_segment].add(item)
+                    if item_segment is not None:
+                        added_items_per_segment[item_segment].add(item)
 
-                if item_segment in min_satisfied:
-                    if len(added_items_per_segment[item_segment]) >= min_required_items[item_segment]:
-                        min_satisfied[item_segment] = True
-                        # print(f"[ILP] Segment {item_segment} has enough items {len(added_items_per_segment[item_segment])} >= {min_required_items[item_segment]}")
+                    if item_segment in min_satisfied:
+                        if len(added_items_per_segment[item_segment]) >= min_required_items[item_segment]:
+                            min_satisfied[item_segment] = True
+                            # print(f"[ILP] Segment {item_segment} has enough items {len(added_items_per_segment[item_segment])} >= {min_required_items[item_segment]}")
+                    break
 
             if len(candidate_items) >= N and all(min_satisfied.values()): # all min items constraints are satisfied and we have enough items
                 break
@@ -339,7 +339,6 @@ class ILP(Algorithm):
 
     # hard limit for MaxItemsPerSegmentConstraint, worst case for MinItemsPerSegmentConstraint
     # this is the deprecated version, useful for understanding the computation
-    @deprecated
     def compute_limit_items_old(self, N: int, W: int, item_limit_per_window: int):
         max_items_limit = 0
         p = 1

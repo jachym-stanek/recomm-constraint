@@ -18,20 +18,19 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
              partition_size=None, verbose=True):
     print(f"\n=== {test_name} ===")
     start_time = time.time()
-    segments_id_dict = {seg.id: seg for seg in segments}
-    item_segment_map = {item_id: seg_id for seg_id, segment in segments_id_dict.items() for item_id in segment}
+    item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
     if partition_size is not None:
-        recommended_items = solver.solve_by_partitioning(items, segments_id_dict, constraints, N, partition_size=partition_size,
+        recommended_items = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=partition_size,
                                                          item_segment_map=item_segment_map, use_doubling=False)
     else:
-        recommended_items = solver.solve(items, segments_id_dict, constraints, N, already_recommended_items)
+        recommended_items = solver.solve(items, segments, constraints, N, already_recommended_items)
     print(f"Recommended Items: {recommended_items}")
 
     # Check constraints
     if recommended_items:
         all_constraints_satisfied = True
         for constraint in constraints:
-            if not constraint.check_constraint(recommended_items, items, segments_id_dict, already_recommended_items):
+            if not constraint.check_constraint(recommended_items, items, segments, already_recommended_items):
                 print(f"Constraint {constraint} is not satisfied.")
                 all_constraints_satisfied = False
         if all_constraints_satisfied or using_soft_constraints:
@@ -40,13 +39,13 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
                 print("Recommended Items:")
                 if already_recommended_items:
                     for position, item_id in enumerate(already_recommended_items):
-                        item_segments = [seg.id for seg in segments if item_id in seg]
+                        item_segments = [seg_id for seg_id, segment in segments.items() if item_id in segment]
                         print(f"Position {-len(already_recommended_items) + position}: {item_id} (Item segments: {item_segments})")
             total_score = 0
             for position, item_id in recommended_items.items():
                 score = items[item_id]
                 total_score += score
-                item_segments = [seg.id for seg in segments if item_id in seg]
+                item_segments = [seg_id for seg_id, segment in segments.items() if item_id in segment]
                 if verbose:
                     print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
             print(f"Total Score: {total_score:.1f}")
@@ -428,7 +427,14 @@ def items_preprocessing_basic_test():
 def run_test_preprocessing(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, verbose=False,
                            preprocessing_only=False):
     segments_dict = {seg.id: seg for seg in segments}
-    item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
+    # item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
+    item_segment_map = dict()
+    for seg_id, segment in segments_dict.items():
+        for item_id in segment:
+            if item_id in item_segment_map:
+                item_segment_map[item_id].append(seg_id)
+            else:
+                item_segment_map[item_id] = [seg_id]
 
     print(f"\n=== {test_name} ===")
     start_time = time.time()
@@ -741,7 +747,7 @@ def ILP_solve_for_overlapping_segments():
     constraints = [
         MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
     ]
-    run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=False)
+    run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=True)
 
     items = {f'item-{i}': i for i in range(1, 21)}
     segment1 = Segment('segment1', 'test-prop', *list(items.keys())[5:])
@@ -1167,6 +1173,71 @@ def plot_results_all_approaches(results_file: str):
     plt.show()
 
 
+"""
+Experiment with increasing size of candidatte itemes and number of recommendations
+with bare ILP solver without any preprocessing or partitioning
+"""
+def basic_ILP_time_efficiency_test():
+    # Increasing N
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segment1 = Segment('segment1', 'test-prop', *list(items.keys())[0:100:4])
+    segment2 = Segment('segment2', 'test-prop', *list(items.keys())[1:100:4])
+    segment3 = Segment('segment3', 'test-prop', *list(items.keys())[2:100:4])
+    segment4 = Segment('segment4', 'test-prop', *list(items.keys())[3:100:4])
+    segments = {segment1.id: segment1, segment2.id: segment2, segment3.id: segment3, segment4.id: segment4}
+    solver = ILP(verbose=False)
+
+    results = dict()
+
+    for N in [10, 12, 16, 20, 25, 30, 40, 50, 60, 70, 80, 90]:
+        constraints = [
+            MaxSegmentsPerSegmentationConstraint('test-prop', 1, 4)
+        ]
+        time_elapsed = run_test(f"Test Case N:{N}, M: 100", solver, items, segments, constraints, N, verbose=False)
+        results[N] = time_elapsed
+
+    print(results)
+    # plot results
+    plt.figure(figsize=(8, 6))
+    plt.plot(list(results.keys()), list(results.values()), marker='o')
+    plt.title("Time Efficiency of ILP Solver for Increasing Number of Recommendations")
+    plt.xlabel("Number of Recommendations (N)")
+    plt.ylabel("Time (milliseconds)")
+    plt.tight_layout()
+    plt.grid()
+    plt.show()
+
+    # Increasing M
+    results = dict()
+    for M in [40, 80, 120, 160, 200, 250, 300, 400, 500]:
+        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+        segment1 = Segment('segment1', 'test-prop', *list(items.keys())[0:M:4])
+        segment2 = Segment('segment2', 'test-prop', *list(items.keys())[1:M:4])
+        segment3 = Segment('segment3', 'test-prop', *list(items.keys())[2:M:4])
+        segment4 = Segment('segment4', 'test-prop', *list(items.keys())[3:M:4])
+        segments = {segment1.id: segment1, segment2.id: segment2, segment3.id: segment3, segment4.id: segment4}
+        constraints = [
+            MaxSegmentsPerSegmentationConstraint('test-prop', 1, 4)
+        ]
+        time_elapsed = run_test(f"Test Case N:50, M: {M}", solver, items, segments, constraints, 20, verbose=False)
+        results[M] = time_elapsed
+
+    print(results)
+    # plot results
+    plt.figure(figsize=(8, 6))
+    plt.plot(list(results.keys()), list(results.values()), marker='o')
+    plt.title("Time Efficiency of ILP Solver for Increasing Number of Candidates")
+    plt.xlabel("Number of Candidates (M)")
+    plt.ylabel("Time (milliseconds)")
+    plt.tight_layout()
+    plt.grid()
+    plt.show()
+
+
+
+
+
+
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
@@ -1180,7 +1251,8 @@ if __name__ == "__main__":
     # ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
-    plot_results_all_approaches('results_ILP_compare_approaches.pkl')
+    basic_ILP_time_efficiency_test()
+    # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
