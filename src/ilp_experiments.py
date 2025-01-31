@@ -10,8 +10,8 @@ import pickle
 from src.algorithms.ILP import ILP
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, MinSegmentsPerSegmentationConstraint, MaxSegmentsPerSegmentationConstraint, \
-    ItemUniqueness2D
+    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
+    MinSegmentDiversityConstraint, MaxSegmentDiversityConstraint, ItemUniqueness2D
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
@@ -90,7 +90,7 @@ def ILP_basic_test():
     seg2 = Segment('genre2', 'genre', 'item6', 'item7', 'item8', 'item9', 'item10')
     seg3 = Segment('genre3', 'genre', 'item11', 'item12', 'item13', 'item14', 'item15')
     seg4 = Segment('genre4', 'genre', 'item16', 'item17', 'item18', 'item19', 'item20')
-    segments = [seg1, seg2, seg3, seg4]
+    segments = {seg.id: seg for seg in [seg1, seg2, seg3, seg4]}
 
     # Test Case 1: Single Constraint
     N = 5
@@ -126,7 +126,7 @@ def ILP_basic_test():
     segment3 = Segment('segment3', 'genre', *list(items.keys())[25:75])
     segment4 = Segment('segment4', 'genre', *list(items.keys())[1::2])
     segment5 = Segment('segment5', 'genre', *list(items.keys())[:10])
-    segments = [segment1, segment2, segment3, segment4, segment5]
+    segments = {seg.id: seg for seg in [segment1, segment2, segment3, segment4, segment5]}
 
     N = 10
     constraints = [
@@ -149,7 +149,7 @@ def ILP_basic_test():
     segment2 = Segment('segment2', 'genre', *list(items.keys())[25:50])
     segment3 = Segment('segment3', 'genre', *list(items.keys())[50:75])
     segment4 = Segment('segment4', 'genre', *list(items.keys())[75:])
-    segments = [segment1, segment2, segment3, segment4]
+    segments = {seg.id: seg for seg in [segment1, segment2, segment3, segment4]}
     constraints = [
         MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=4),
         MinItemsPerSegmentConstraint(segment_id='segment2', min_items=1, window_size=4),
@@ -167,7 +167,8 @@ def ILP_basic_test():
     N = 50
     items = {f'item-{i}': random.uniform(0, 10) for i in range(1, 1001)}
     # 10 non overlapping segments
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*100:(i+1)*100]) for i in range(10)]
+    segment_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*100:(i+1)*100]) for i in range(10)]
+    segments = {seg.id: seg for seg in segment_list}
     min_window_constraints = [
         MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2, window_size=10) for i in range(10)
     ]
@@ -180,7 +181,8 @@ def ILP_basic_test():
     # Test Case 7: 100 candidate items for N=10, soft constraints
     N = 10
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
+    segment_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
+    segments = {seg.id: seg for seg in segment_list}
     constraints = [
         MinItemsPerSegmentConstraint(segment_id=f'segment0', min_items=1, window_size=5, weight=1.0),
         MinItemsPerSegmentConstraint(segment_id=f'segment1', min_items=1, window_size=5, weight=0.9),
@@ -191,23 +193,42 @@ def ILP_basic_test():
     ]
     run_test("Test Case 7", solver, items, segments, constraints, N, using_soft_constraints=True)
 
-    # Test Case 8: 100 candidate items for N=10, hard constraints - min diversity
+    # Test Case 8: 100 candidate items for N=10, hard constraints - GlobalMinItemsPerSegmentConstraint
     N = 10
     items = {f'item-{i}': max(random.uniform(0, 1) - i*0.01, 0) for i in range(1, 101)} # Decreasing scores to check diversity
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*25:(i+1)*25]) for i in range(4)]
+    segment_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*25:(i+1)*25]) for i in range(4)]
+    segments = {seg.id: seg for seg in segment_list}
     constraints = [
-        MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=2, weight=1.0, window_size=N)
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=2, weight=1.0, window_size=N)
     ]
     run_test("Test Case 8", solver, items, segments, constraints, N) # should include 2 items from each segment and maximize score by including items from earlier segments
 
-    # Test Case 9: 100 candidate items for N=10, hard constraints - max diversity
+    # Test Case 9: 100 candidate items for N=10, hard constraints - GlobalMaxItemsPerSegmentConstraint
     N = 10
     items = {f'item-{i}': max(random.uniform(0, 1) - i*0.01, 0) for i in range(1, 101)} # Decreasing scores to check diversity
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(5)]
+    segment_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(5)]
+    segments = {seg.id: seg for seg in segment_list}
     constraints = [
-        MaxSegmentsPerSegmentationConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=N)
+        GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=N)
     ]
     run_test("Test Case 9", solver, items, segments, constraints, N) # should include 2 items from each segment even if it reduces the total score
+
+    # Test Case 10: Test MinSegmentDiversity simple
+    N = 10
+    items = {f'item-{i}': i*0.01 for i in range(1, 101)}
+    segment_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
+    segments = {seg.id: seg for seg in segment_list}
+    constraints = [
+        MinSegmentDiversityConstraint(segmentation_property='test-prop', min_segments=2, window_size=3, weight=1.0)
+    ]
+    run_test("Test Case 10", solver, items, segments, constraints, N) # should
+
+    # Test Case 11: Test MaxSegmentDiversity simple
+    constraints = [
+        MaxSegmentDiversityConstraint(segmentation_property='test-prop', max_segments=3, window_size=5, weight=1.0)
+    ]
+    run_test("Test Case 11", solver, items, segments, constraints, N) # should include maximum of 3 different segments in each window of size 5, in practise should fill everything with th
+
 
 
 def ILP_time_efficiency(constraint_weight=1.0, use_preprocessing=False):
@@ -504,7 +525,7 @@ def ILP_solve_with_already_recommeded_items_test():
     items = {f'item-{i}': max(random.uniform(0, 1) - i*0.01, 0) for i in range(1, 101)} # Decreasing scores to check diversity
     segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 20:(i + 1) * 20]) for i in range(5)]
     constraints = [
-        MaxSegmentsPerSegmentationConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=5)
+        GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=5)
     ]
     already_recommended_items = ['item-1', 'item-21', 'item-41', 'item-61', 'item-81', 'item-2', 'item-22', 'item-42', 'item-62', 'item-82']
     run_test("Test Case 1", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
@@ -513,7 +534,7 @@ def ILP_solve_with_already_recommeded_items_test():
     run_test("Test Case 2", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
     constraints = [
-        MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
     ]
     already_recommended_items = ['item-81', 'item-61', 'item-41', 'item-21', 'item-1']
     run_test("Test Case 3", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
@@ -559,7 +580,7 @@ def ILP_partitioning_test():
     segment2 = Segment('segment2', 'test-prop', 'item-6', 'item-7', 'item-8', 'item-9', 'item-10')
     segments = [segment1, segment2]
     N = 10
-    constraints = [ MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=3) ]
+    constraints = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=3)]
     run_test_preprocessing("Test Case 4 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
     run_test("Test Case 4 partitioning", solver, items, segments, constraints, N, partition_size=3, verbose=verbose)
 
@@ -569,7 +590,7 @@ def ILP_partitioning_test():
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[20:])
     segments = [segment1, segment2, segment3]
     N = 28
-    constraints = [MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)]
+    constraints = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)]
     run_test_preprocessing("Test Case 5 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
     run_test("Test Case 5 partitioning", solver, items, segments, constraints, N, partition_size=3, verbose=verbose)
 
@@ -581,8 +602,8 @@ def ILP_partitioning_test():
     N = 100
     partition_size = 10
     constraints = [
-        MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=15),
-        MaxSegmentsPerSegmentationConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=15)
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=15),
+        GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=15)
     ]
     run_test_preprocessing("Test Case 6 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
     run_test("Test Case 6a partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
@@ -605,8 +626,8 @@ def ILP_partitioning_test():
     M = 100
     num_segments = 20
     constraints = [
-        MinSegmentsPerSegmentationConstraint('test-prop', 1, 25, weight=0.9),
-        MaxSegmentsPerSegmentationConstraint('test-prop', 2, 30, weight=0.9)
+        GlobalMinItemsPerSegmentConstraint('test-prop', 1, 25, weight=0.9),
+        GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 30, weight=0.9)
     ]
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
     segment_size = M // num_segments
@@ -637,7 +658,7 @@ def ILP_partitioning_time_efficiency():
             for p in partition_sizes:
                 # test only MinDiversity constraint
                 constraints = [
-                    MinSegmentsPerSegmentationConstraint('test-prop', 1, 25)
+                    GlobalMinItemsPerSegmentConstraint('test-prop', 1, 25)
                 ]
                 try:
                     elapsed_time = run_test(f"Test Case N:{N}, M: {M}, p:{p}, MinOnly partitioning", solver, items, segments, constraints, N, partition_size=p, verbose=False)
@@ -647,7 +668,7 @@ def ILP_partitioning_time_efficiency():
 
                 # test only MaxDiversity constraint
                 constraints = [
-                    MaxSegmentsPerSegmentationConstraint('test-prop', 2, 25)
+                    GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 25)
                 ]
                 try:
                     elapsed_time = run_test(f"Test Case N:{N}, M: {M}, p:{p}, MaxOnly partitioning", solver, items, segments, constraints, N, partition_size=p, verbose=False)
@@ -657,8 +678,8 @@ def ILP_partitioning_time_efficiency():
 
                 # test both MinDiversity and MaxDiversity constraints
                 constraints = [
-                    MinSegmentsPerSegmentationConstraint('test-prop', 1, 25),
-                    MaxSegmentsPerSegmentationConstraint('test-prop', 2, 25)
+                    GlobalMinItemsPerSegmentConstraint('test-prop', 1, 25),
+                    GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 25)
                 ]
                 try:
                     elapsed_time = run_test(f"Test Case N:{N}, M: {M}, p:{p}, Both partitioning", solver, items, segments, constraints, N, partition_size=p, verbose=False)
@@ -737,17 +758,17 @@ def plot_results_ILP_partitioning(results_file: str):
 def ILP_solve_for_overlapping_segments():
     solver = ILP()
 
-    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
-    segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:50])
-    segment2 = Segment('segment2', 'test-prop', *list(items.keys())[25:75])
-    segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
-    segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
-    segments = [segment1, segment2, segment3, segment4]
-    N = 10
-    constraints = [
-        MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
-    ]
-    run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=True)
+    # items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    # segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:50])
+    # segment2 = Segment('segment2', 'test-prop', *list(items.keys())[25:75])
+    # segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
+    # segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
+    # segments = [segment1, segment2, segment3, segment4]
+    # N = 10
+    # constraints = [
+    #     MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
+    # ]
+    # run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=True)
 
     items = {f'item-{i}': i for i in range(1, 21)}
     segment1 = Segment('segment1', 'test-prop', *list(items.keys())[5:])
@@ -755,7 +776,7 @@ def ILP_solve_for_overlapping_segments():
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
     N = 6
-    constraints = [ MaxSegmentsPerSegmentationConstraint(segmentation_property='test-prop', max_items=3, window_size=N) ]
+    constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=3, window_size=N)]
     run_test_preprocessing("Test Case 2", solver, items, [segment1, segment2, segment3, segment4], constraints, N, verbose=True)
 
 
@@ -797,7 +818,7 @@ def ILP_2D_constraints_test():
         MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=5),
         MaxItemsPerSegmentConstraint(segment_id='segment1', max_items=4, window_size=5),
     ]
-    constraints2 = [MinSegmentsPerSegmentationConstraint(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2)]
+    constraints2 = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2)]
     constraints1D = [constraints1, constraints2, []]
 
     result = solver.solve_2D_constraints(items, segments_id_dict, constraints1D, constraints2D, N)
@@ -834,7 +855,7 @@ def ILP_2D_constraints_test():
     segment1 = Segment('segment1', 'test-property', *list(items1.keys())[:50])
     segment2 = Segment('segment2', 'test-property', *list(items1.keys())[50:])
     segments = {segment1.id: segment1, segment2.id: segment2}
-    constraints = [[MinSegmentsPerSegmentationConstraint('test-property', 1, 3)], [], [], []]
+    constraints = [[GlobalMinItemsPerSegmentConstraint('test-property', 1, 3)], [], [], []]
     constraints2D = [ItemUniqueness2D(width=10, height=3)]
 
     start_time = time.time()
@@ -926,8 +947,8 @@ def ILP_2D_constraints_test_preprocessing():
     segment2 = Segment('segment2', 'test-property', *[f'item-{i}' for i in range(1, 600, 2)])
     segments = {segment1.id: segment1, segment2.id: segment2}
     item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-    constraints1 = [ MaxSegmentsPerSegmentationConstraint(segmentation_property='test-property', max_items=3, window_size=5) ]
-    constraints2 = [ MinSegmentsPerSegmentationConstraint(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2) ]
+    constraints1 = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-property', max_items=3, window_size=5)]
+    constraints2 = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2)]
     constraints3 = [ MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=5) ]
     constraints4 = [ MaxItemsPerSegmentConstraint(segment_id='segment1', max_items=1, window_size=5) ]
     constraints1D = [constraints1, constraints2, constraints3, constraints4]
@@ -1058,8 +1079,8 @@ def compare_ILP_approaches():
             if M <= N:
                 continue
             constraints = [
-                MinSegmentsPerSegmentationConstraint('test-prop', 1, 10, weight=0.9),
-                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 10, weight=0.9)
+                GlobalMinItemsPerSegmentConstraint('test-prop', 1, 10, weight=0.9),
+                GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10, weight=0.9)
             ]
             results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver,
                                                              items, segments, constraints, N, M, partition_sizes, verbose=test_verbose)
@@ -1081,8 +1102,8 @@ def compare_ILP_approaches():
                 run_test_case_normal = False
 
             constraints = [
-                MinSegmentsPerSegmentationConstraint('test-prop', 1, 25, weight=0.9),
-                MaxSegmentsPerSegmentationConstraint('test-prop', 2, 30, weight=0.9)
+                GlobalMinItemsPerSegmentConstraint('test-prop', 1, 25, weight=0.9),
+                GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 30, weight=0.9)
             ]
             results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, items, segments,
                                                       constraints, N, M, partition_sizes, verbose=test_verbose, run_normal=run_test_case_normal)
@@ -1191,7 +1212,7 @@ def basic_ILP_time_efficiency_test():
 
     for N in [10, 12, 16, 20, 25, 30, 40, 50, 60, 70, 80, 90]:
         constraints = [
-            MaxSegmentsPerSegmentationConstraint('test-prop', 1, 4)
+            GlobalMaxItemsPerSegmentConstraint('test-prop', 1, 4)
         ]
         time_elapsed = run_test(f"Test Case N:{N}, M: 100", solver, items, segments, constraints, N, verbose=False)
         results[N] = time_elapsed
@@ -1217,7 +1238,7 @@ def basic_ILP_time_efficiency_test():
         segment4 = Segment('segment4', 'test-prop', *list(items.keys())[3:M:4])
         segments = {segment1.id: segment1, segment2.id: segment2, segment3.id: segment3, segment4.id: segment4}
         constraints = [
-            MaxSegmentsPerSegmentationConstraint('test-prop', 1, 4)
+            GlobalMaxItemsPerSegmentConstraint('test-prop', 1, 4)
         ]
         time_elapsed = run_test(f"Test Case N:50, M: {M}", solver, items, segments, constraints, 20, verbose=False)
         results[M] = time_elapsed
@@ -1243,7 +1264,7 @@ if __name__ == "__main__":
     # ILP_time_efficiency()
     # ILP_time_efficiency(constraint_weight=0.9)
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
-    # ILP_basic_test()
+    ILP_basic_test()
     # ILP_solve_with_already_recommeded_items_test()
     # ILP_partitioning_test()
     # ILP_partitioning_time_efficiency()
@@ -1251,7 +1272,7 @@ if __name__ == "__main__":
     # ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
-    basic_ILP_time_efficiency_test()
+    # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()
 # Datasety na vyzkouseni:

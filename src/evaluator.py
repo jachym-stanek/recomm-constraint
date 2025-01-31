@@ -9,7 +9,7 @@ from src.dataset import Dataset
 from src.settings import Settings
 from src.segmentation import SegmentationExtractor
 from src.algorithms.ILP import ILP
-from src.constraints.constraint import MaxSegmentsPerSegmentationConstraint, Constraint
+from src.constraints.constraint import GlobalMaxItemsPerSegmentConstraint, Constraint
 
 
 class Evaluator:

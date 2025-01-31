@@ -7,7 +7,7 @@ from typing import Dict, List, Set
 from src.algorithms.algorithm import Algorithm
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, MinSegmentsPerSegmentationConstraint, MaxSegmentsPerSegmentationConstraint, \
+    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
     Constraint2D, ItemUniqueness2D
 
 
@@ -49,20 +49,20 @@ class ILP(Algorithm):
                     window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count else constraint.window_size
                     partition_constraints.append(MaxItemsPerSegmentConstraint(constraint.segment_id, constraint.max_items,
                                                                               window_size, weight=constraint.weight))
-                elif isinstance(constraint, MaxSegmentsPerSegmentationConstraint):
+                elif isinstance(constraint, GlobalMaxItemsPerSegmentConstraint):
                     window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count else constraint.window_size
-                    partition_constraints.append(MaxSegmentsPerSegmentationConstraint(constraint.segmentation_property, constraint.max_items,
-                                                                                      window_size, weight=constraint.weight))
+                    partition_constraints.append(GlobalMaxItemsPerSegmentConstraint(constraint.segmentation_property, constraint.max_items,
+                                                                                    window_size, weight=constraint.weight))
                 elif isinstance(constraint, MinItemsPerSegmentConstraint):
                     window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count + len(already_recommended_items) else constraint.window_size
                     partition_constraint_weight = 0.9 if constraint.weight == 1 and constraint.window_size > partition_count + len(already_recommended_items) else constraint.weight  # make min constraints soft if they are hard
                     partition_constraints.append(MinItemsPerSegmentConstraint(constraint.segment_id, constraint.min_items,
                                                                               window_size, weight=partition_constraint_weight))
-                elif isinstance(constraint, MinSegmentsPerSegmentationConstraint):
+                elif isinstance(constraint, GlobalMinItemsPerSegmentConstraint):
                     window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count else constraint.window_size
                     partition_constraint_weight = 0.9 if constraint.weight == 1 and len(already_recommended_items) + partition_count < N else constraint.weight
-                    partition_constraints.append(MinSegmentsPerSegmentationConstraint(constraint.segmentation_property, constraint.min_items,
-                                                                                      window_size, weight=partition_constraint_weight))
+                    partition_constraints.append(GlobalMinItemsPerSegmentConstraint(constraint.segmentation_property, constraint.min_items,
+                                                                                    window_size, weight=partition_constraint_weight))
                 else:
                     partition_constraints.append(constraint)
 
@@ -210,13 +210,13 @@ class ILP(Algorithm):
         for constraint in constraints:
             if isinstance(constraint, MaxItemsPerSegmentConstraint):
                 self.preprocess_MaxItemsPerSegmentConstraint(constraint, N, items, segments, removed_items, already_recommended_items=previous_recommended_items)
-            elif isinstance(constraint, MaxSegmentsPerSegmentationConstraint):
+            elif isinstance(constraint, GlobalMaxItemsPerSegmentConstraint):
                 constraint.initialize_constraint_from_segments(items_remaining_per_segment)
                 for c in constraint.constraints:
                     self.preprocess_MaxItemsPerSegmentConstraint(c, N, items, segments, removed_items, already_recommended_items=previous_recommended_items)
             elif isinstance(constraint, MinItemsPerSegmentConstraint):
                 self.compute_bare_minumum_for_MinItemsPerSegmentConstraint(constraint, N, segment_bare_minimums)
-            elif isinstance(constraint, MinSegmentsPerSegmentationConstraint):
+            elif isinstance(constraint, GlobalMinItemsPerSegmentConstraint):
                 constraint.initialize_constraint_from_segments(items_remaining_per_segment)
                 for c in constraint.constraints:
                     self.compute_bare_minumum_for_MinItemsPerSegmentConstraint(c, N, segment_bare_minimums)
@@ -234,7 +234,7 @@ class ILP(Algorithm):
             if isinstance(constraint, MinItemsPerSegmentConstraint):
                 self.preprocess_MinItemsPerSegmentConstraint(constraint, N, segment_bare_minimums, min_required_items,
                                                              min_satisfied, len(items_remaining_per_segment[constraint.segment_id]), remaining_recomm_len)
-            elif isinstance(constraint, MinSegmentsPerSegmentationConstraint):
+            elif isinstance(constraint, GlobalMinItemsPerSegmentConstraint):
                 for c in constraint.constraints:
                     self.preprocess_MinItemsPerSegmentConstraint(c, N, segment_bare_minimums, min_required_items, min_satisfied,
                                                                  len(items_remaining_per_segment[c.segment_id]), remaining_recomm_len)
@@ -304,6 +304,7 @@ class ILP(Algorithm):
         # Get the segment's items
         segment_items = [i for i in segments[segment_id] if i in items]
         sorted_items = sorted(segment_items, key=lambda x: items[x], reverse=True)
+        # TODO dont remove items from overlapping segments
         removed = set(sorted_items[max_total_items:])  # Remove the lowest scoring items, keep the top max_total_items
         # print(f"Removed {len(removed)} items")
         removed_items.update(removed)

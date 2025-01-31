@@ -126,7 +126,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
             window = positions[i:i + self.window_size]
             if self.weight < 1.0:
                 # Soft constraint: Introduce slack variable
-                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}")
+                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}") # TODO maybe only one slack variable for all windows
                 model.addConstr(
                     quicksum(x[i, row, p] for i in items if i in segment_items for p in window) - s <= self.max_items,
                     name=f"{self.name}_{i}"
@@ -254,12 +254,13 @@ class ItemAtPositionConstraint(Constraint):
         return f"{self.name}(item_id={self.item_id}, position={self.position})"
 
 
-"""
-Minimum nuber of items from each segment that belongs to segmentation of target property
-E.g. Final recommendation should contain at least 2 items from every genre
-"""
-class MinSegmentsPerSegmentationConstraint(Constraint):
-    def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="MinSegmentsPerSegmentation", verbose=False):
+class GlobalMinItemsPerSegmentConstraint(Constraint):
+    """
+    Minimum nuber of items from each segment that belongs to segmentation of target property
+    E.g. Final recommendation should contain at least 2 items from every genre present in the candidate items
+    """
+
+    def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="GlobalMinItemsPerSegment", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.min_items = min_items
@@ -272,7 +273,7 @@ class MinSegmentsPerSegmentationConstraint(Constraint):
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
                 if self.verbose:
-                    print(f"[MinSegmentsPerSegmentation]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
+                    print(f"[{self.name}]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
                 constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
@@ -290,8 +291,13 @@ class MinSegmentsPerSegmentationConstraint(Constraint):
         return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items})"
 
 
-class MaxSegmentsPerSegmentationConstraint(Constraint):
-    def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="MaxSegmentsPerSegmentation", verbose=False):
+class GlobalMaxItemsPerSegmentConstraint(Constraint):
+    """
+    Maximum nuber of items from each segment that belongs to segmentation of target property
+    E.g. Final recommendation should contain at most 2 items from every genre present in the candidate items
+    """
+
+    def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="GlobalMaxItemsPerSegment", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.max_items = max_items
@@ -304,7 +310,7 @@ class MaxSegmentsPerSegmentationConstraint(Constraint):
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
                 if self.verbose:
-                    print(f"[MaxSegmentsPerSegmentation]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
+                    print(f"[{self.name}]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
                 constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
@@ -321,6 +327,165 @@ class MaxSegmentsPerSegmentationConstraint(Constraint):
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items})"
 
+
+class MinSegmentDiversityConstraint(Constraint):
+    """
+    Minimum number of segments that should be represented in the final recommendation
+    E.g. Final recommendation should contain at least 2 different genres
+    """
+
+    def __init__(self, segmentation_property, min_segments, window_size, name="MinSegmentDiversity", weight=1.0, verbose=False):
+        super().__init__(name, weight)
+        self.segmentation_property = segmentation_property
+        self.min_segments = min_segments
+        self.window_size = window_size
+        self.verbose = verbose
+
+    def add_to_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
+        segment_ids = set()
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                segment_ids.add(segment_id)
+
+        # binary variable for each segment and window y_{segment_id, i} = 1 if segment_id is represented in the window
+        window_starts = range(N - self.window_size + 1)
+        y = model.addVars([row], segment_ids, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
+
+        for i in range(N - self.window_size + 1):
+            window = positions[i:i + self.window_size]
+
+            # set constraints on y (ensure y=1 if any segment item is in the window and y=0 otherwise)
+            for segment_id in segment_ids:
+                segment_items = segments[segment_id]
+                model.addConstr(
+                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in segment_items for p in window),
+                    name=f"y_{self.name}_{row}_{segment_id}_{i}"
+                )
+                for item_id in segment_items:
+                    model.addConstr(
+                        y[row, segment_id, i] >= x[item_id, row, window[0]],
+                        name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
+                    )
+
+            # constraint on the number of segments in the window
+            if self.weight < 1.0:
+                # Soft constraint: Introduce slack variable
+                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}")
+                model.addConstr(
+                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) + s >= self.min_segments,
+                    name=f"{self.name}_{i}"
+                )
+                penalty_coeff = K * self.weight / (1 - self.weight)
+                model._penalties.append((s, penalty_coeff))
+            else:
+                # Hard constraint
+                model.addConstr(
+                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) >= self.min_segments,
+                    name=f"{self.name}_{i}"
+                )
+
+        # TODO: implement constraint including the already recommended items
+
+    def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        segment_ids = set()
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                segment_ids.add(segment_id)
+
+        N = len(solution)
+        for i in range(N - self.window_size + 1):
+            window = list(solution.values())[i:i + self.window_size]
+            segments_in_window = set()
+            for item_id in window:
+                for segment_id in segment_ids:
+                    if item_id in segments[segment_id]:
+                        segments_in_window.add(segment_id)
+            if len(segments_in_window) < self.min_segments:
+                return False
+        return True
+
+    def __repr__(self):
+        return f"{self.name}(segmentation_property={self.segmentation_property}, min_segments={self.min_segments})"
+
+
+class MaxSegmentDiversityConstraint(Constraint):
+    """
+    Maximum number of segments that should be represented in the final recommendation
+    E.g. Final recommendation should contain at most 2 different genres
+    """
+
+    def __init__(self, segmentation_property, max_segments, window_size, name="MaxSegmentDiversity", weight=1.0, verbose=False):
+        super().__init__(name, weight)
+        self.segmentation_property = segmentation_property
+        self.max_segments = max_segments
+        self.window_size = window_size
+        self.verbose = verbose
+
+    def add_to_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
+        segment_ids = set()
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                segment_ids.add(segment_id)
+
+        # binary variable for each segment and window y_{segment_id, i} = 1 if segment_id is represented in the window
+        window_starts = range(N - self.window_size + 1)
+        y = model.addVars([row], segment_ids, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
+
+        for i in range(N - self.window_size + 1):
+            window = positions[i:i + self.window_size]
+
+            # set constraints on y (ensure y=1 if any segment item is in the window and y=0 otherwise)
+            for segment_id in segment_ids:
+                segment_items = segments[segment_id]
+                model.addConstr(
+                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in segment_items for p in window),
+                    name=f"y_{self.name}_{row}_{segment_id}_{i}"
+                )
+                for item_id in segment_items:
+                    model.addConstr(
+                        y[row, segment_id, i] >= x[item_id, row, window[0]],
+                        name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
+                    )
+
+            # constraint on the number of segments in the window
+            if self.weight < 1.0:
+                # Soft constraint: Introduce slack variable
+                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}")
+                model.addConstr(
+                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) - s <= self.max_segments,
+                    name=f"{self.name}_{i}"
+                )
+                penalty_coeff = K * self.weight / (1 - self.weight)
+                model._penalties.append((s, penalty_coeff))
+            else:
+                # Hard constraint
+                model.addConstr(
+                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) <= self.max_segments,
+                    name=f"{self.name}_{i}"
+                )
+
+        # TODO: implement constraint including the already recommended items
+
+    def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        segment_ids = set()
+        for segment_id in segments:
+            if segments[segment_id].property == self.segmentation_property:
+                segment_ids.add(segment_id)
+
+        N = len(solution)
+        for i in range(N - self.window_size + 1):
+            window = list(solution.values())[i:i + self.window_size]
+            segments_in_window = set()
+            for item_id in window:
+                for segment_id in segment_ids:
+                    if item_id in segments[segment_id]:
+                        segments_in_window.add(segment_id)
+            if len(segments_in_window) > self.max_segments:
+                return False
+        return True
+
+    def __repr__(self):
+        return f"{self.name}(segmentation_property={self.segmentation_property}, max_segments={self.max_segments})"
 
 class ItemUniqueness2D(Constraint2D):
     def __init__(self, width, height, name="ItemUniqueness2D", weight=1.0):
