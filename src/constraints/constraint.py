@@ -384,7 +384,46 @@ class MinSegmentDiversityConstraint(Constraint):
                     name=f"{self.name}_{i}"
                 )
 
-        # TODO: implement constraint including the already recommended items
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items) + 1)
+            for i in range(counter_start, counter_end):
+                recomm_positions = positions[:self.window_size - i]
+                constant = {}
+                for segment_id in segment_ids:
+                    already_present = 1 if any(
+                        item_id in segments[segment_id] for item_id in already_recommended_items[-i:]) else 0
+                    constant[segment_id] = already_present
+                const_sum = sum(constant.values())
+                new_y_vars = {}
+                for segment_id in segment_ids:
+                    if constant[segment_id] == 0:
+                        new_y_vars[segment_id] = model.addVar(vtype=GRB.BINARY,
+                                                              name=f"y_{self.name}_already_{segment_id}_{i}")
+                        model.addConstr(
+                            new_y_vars[segment_id] <= quicksum(
+                                x[item_id, row, p] for item_id in segments[segment_id] for p in recomm_positions),
+                            name=f"y_{self.name}_already_constr1_{segment_id}_{i}"
+                        )
+                        for item_id in segments[segment_id]:
+                            model.addConstr(
+                                new_y_vars[segment_id] >= x[item_id, row, recomm_positions[0]],
+                                name=f"y_{self.name}_already_constr2_{segment_id}_{i}_{item_id}"
+                            )
+                # For the effective window, the count is constant (from already recommended items) plus contributions from the new part.
+                if self.weight < 1.0:
+                    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_already_{i}")
+                    model.addConstr(
+                        quicksum(new_y_vars[segment_id] for segment_id in new_y_vars) + const_sum + s >= self.min_segments,
+                        name=f"{self.name}_already_{i}"
+                    )
+                    penalty_coeff = K * self.weight / (1 - self.weight)
+                    model._penalties.append((s, penalty_coeff))
+                else:
+                    model.addConstr(
+                        quicksum(new_y_vars[segment_id] for segment_id in new_y_vars) + const_sum >= self.min_segments,
+                        name=f"{self.name}_already_{i}"
+                    )
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         segment_ids = set()
@@ -402,6 +441,25 @@ class MinSegmentDiversityConstraint(Constraint):
                         segments_in_window.add(segment_id)
             if len(segments_in_window) < self.min_segments:
                 return False
+
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items) + 1)
+            for i in range(counter_start, counter_end):
+                recomm_positions = list(solution.values())[:self.window_size - i]
+                already_recommended_item_in_window = already_recommended_items[-i:]
+                segments_in_window = set()
+                for item_id in recomm_positions:
+                    for segment_id in segment_ids:
+                        if item_id in segments[segment_id]:
+                            segments_in_window.add(segment_id)
+                for item_id in already_recommended_item_in_window:
+                    for segment_id in segment_ids:
+                        if item_id in segments[segment_id]:
+                            segments_in_window.add(segment_id)
+                if len(segments_in_window) < self.min_segments:
+                    return False
+
         return True
 
     def __repr__(self):
@@ -464,7 +522,46 @@ class MaxSegmentDiversityConstraint(Constraint):
                     name=f"{self.name}_{i}"
                 )
 
-        # TODO: implement constraint including the already recommended items
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items) + 1)
+            for i in range(counter_start, counter_end):
+                recomm_positions = positions[:self.window_size - i]
+                constant = {}
+                for segment_id in segment_ids:
+                    already_present = 1 if any(
+                        item_id in segments[segment_id] for item_id in already_recommended_items[-i:]) else 0
+                    constant[segment_id] = already_present
+                const_sum = sum(constant.values())
+                new_y_vars = {}
+                for segment_id in segment_ids:
+                    if constant[segment_id] == 0:
+                        new_y_vars[segment_id] = model.addVar(vtype=GRB.BINARY,
+                                                              name=f"y_{self.name}_already_{segment_id}_{i}")
+                        model.addConstr(
+                            new_y_vars[segment_id] <= quicksum(
+                                x[item_id, row, p] for item_id in segments[segment_id] for p in recomm_positions),
+                            name=f"y_{self.name}_already_constr1_{segment_id}_{i}"
+                        )
+                        for item_id in segments[segment_id]:
+                            model.addConstr(
+                                new_y_vars[segment_id] >= x[item_id, row, recomm_positions[0]],
+                                name=f"y_{self.name}_already_constr2_{segment_id}_{i}_{item_id}"
+                            )
+                # For the effective window, the count is constant (from already recommended items) plus contributions from the new part.
+                if self.weight < 1.0:
+                    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_already_{i}")
+                    model.addConstr(
+                        const_sum + quicksum(new_y_vars[seg] for seg in new_y_vars) - s <= self.max_segments,
+                        name=f"{self.name}_already_{i}"
+                    )
+                    penalty_coeff = K * self.weight / (1 - self.weight)
+                    model._penalties.append((s, penalty_coeff))
+                else:
+                    model.addConstr(
+                        const_sum + quicksum(new_y_vars[seg] for seg in new_y_vars) <= self.max_segments,
+                        name=f"{self.name}_already_{i}"
+                    )
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         segment_ids = set()
@@ -482,6 +579,25 @@ class MaxSegmentDiversityConstraint(Constraint):
                         segments_in_window.add(segment_id)
             if len(segments_in_window) > self.max_segments:
                 return False
+
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items) + 1)
+            for i in range(counter_start, counter_end):
+                recomm_positions = list(solution.values())[:self.window_size - i]
+                already_recommended_item_in_window = already_recommended_items[-i:]
+                segments_in_window = set()
+                for item_id in recomm_positions:
+                    for segment_id in segment_ids:
+                        if item_id in segments[segment_id]:
+                            segments_in_window.add(segment_id)
+                for item_id in already_recommended_item_in_window:
+                    for segment_id in segment_ids:
+                        if item_id in segments[segment_id]:
+                            segments_in_window.add(segment_id)
+                if len(segments_in_window) > self.max_segments:
+                    return False
+
         return True
 
     def __repr__(self):

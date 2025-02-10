@@ -227,7 +227,7 @@ def ILP_basic_test():
     constraints = [
         MaxSegmentDiversityConstraint(segmentation_property='test-prop', max_segments=3, window_size=5, weight=1.0)
     ]
-    run_test("Test Case 11", solver, items, segments, constraints, N) # should include maximum of 3 different segments in each window of size 5, in practise should fill everything with th
+    run_test("Test Case 11", solver, items, segments, constraints, N) # should fill everything with the most scoring segment
 
 
 
@@ -522,8 +522,9 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
 def ILP_solve_with_already_recommeded_items_test():
     solver = ILP()
     N = 10
-    items = {f'item-{i}': max(random.uniform(0, 1) - i*0.01, 0) for i in range(1, 101)} # Decreasing scores to check diversity
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 20:(i + 1) * 20]) for i in range(5)]
+    items = {f'item-{i}': 1.0 - i*0.01 for i in range(1, 101)} # Decreasing scores to check diversity
+    segments_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 20:(i + 1) * 20]) for i in range(5)]
+    segments = {seg.id: seg for seg in segments_list}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=5)
     ]
@@ -538,6 +539,17 @@ def ILP_solve_with_already_recommeded_items_test():
     ]
     already_recommended_items = ['item-81', 'item-61', 'item-41', 'item-21', 'item-1']
     run_test("Test Case 3", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+
+    constraints = [MaxSegmentDiversityConstraint('test-prop', max_segments=3, window_size=3)]
+    already_recommended_items = ['item-1', 'item-21', 'item-41']
+    # should fill everything with the most scoring segment
+    run_test("Test Case 4", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+
+    constraints = [MinSegmentDiversityConstraint('test-prop', min_segments=3, window_size=3)]
+    already_recommended_items = ['item-1', 'item-21', 'item-41']
+    # should fill everything with the 3 most scoring segments in order
+    run_test("Test Case 5", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+
 
 
 def ILP_partitioning_test():
@@ -1264,8 +1276,8 @@ if __name__ == "__main__":
     # ILP_time_efficiency()
     # ILP_time_efficiency(constraint_weight=0.9)
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
-    ILP_basic_test()
-    # ILP_solve_with_already_recommeded_items_test()
+    # ILP_basic_test()
+    ILP_solve_with_already_recommeded_items_test()
     # ILP_partitioning_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')

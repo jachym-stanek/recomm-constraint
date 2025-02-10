@@ -63,6 +63,7 @@ class ILP(Algorithm):
                     partition_constraint_weight = 0.9 if constraint.weight == 1 and len(already_recommended_items) + partition_count < N else constraint.weight
                     partition_constraints.append(GlobalMinItemsPerSegmentConstraint(constraint.segmentation_property, constraint.min_items,
                                                                                     window_size, weight=partition_constraint_weight))
+                # TODO: also handle changing window size for SegmentDiversityConstraints
                 else:
                     partition_constraints.append(constraint)
 
@@ -191,6 +192,7 @@ class ILP(Algorithm):
         keep taking until all min_items constraints have enough items
     
     """
+    # TODO: needs preprocessing needs to be changed to handle SegmentDiversity constraints and multiple segments per item
     def preprocess_items(self, items: Dict[str, float],
                          items_remaining_per_segment: Dict[str, Segment],
                          segments: Dict[str, Segment],
@@ -244,6 +246,12 @@ class ILP(Algorithm):
         while True:
             item, score = sorted_items[idx]
             item_segments = item_segment_map.get(item)
+
+            if item_segments is None:
+                item_segments = [None]
+
+            if type(item_segments) is not list:
+                item_segments = [item_segments]
 
             for item_segment in item_segments:
                 # decide if to add item - if we do not have enough items or there is a minimum constraint that is not satisfied
