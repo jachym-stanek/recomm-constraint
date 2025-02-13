@@ -1,4 +1,5 @@
 import copy
+import math
 import time
 
 from gurobipy import Model, GRB, quicksum
@@ -7,8 +8,9 @@ from typing import Dict, List, Set
 from src.algorithms.algorithm import Algorithm
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
-    Constraint2D, ItemUniqueness2D
+    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, \
+    GlobalMaxItemsPerSegmentConstraint, \
+    Constraint2D, ItemUniqueness2D, MaxSegmentsConstraint, MinSegmentsConstraint
 
 
 class ILP(Algorithm):
@@ -192,21 +194,23 @@ class ILP(Algorithm):
         keep taking until all min_items constraints have enough items
     
     """
-    # TODO: needs preprocessing needs to be changed to handle SegmentDiversity constraints and multiple segments per item
+    # TODO: multiple segments per item
     def preprocess_items(self, items: Dict[str, float],
                          items_remaining_per_segment: Dict[str, Segment],
                          segments: Dict[str, Segment],
                          constraints: List[Constraint],
                          item_segment_map: Dict[str, list], # map item_id to all item segment ids
                          N: int, remaining_recomm_len: int = None,
-                         previous_recommended_items: List[str] = None,
-                         verbose=False) -> Dict[str, float]:
+                         previous_recommended_items: List[str] = None) -> Dict[str, float]:
         start = time.time()
 
         # Step 1: Process MaxItemsPerSegmentConstraints
         # Initialize a set to hold the candidate items
         removed_items = set()
         segment_bare_minimums = {}  # used for MinItemsPerSegmentConstraint
+        # at least minimum_number_of_segments must have at least minimum_items_per_segment items
+        minimum_number_of_segments = 0
+        minimum_items_per_segment = 0
 
         # For each MaxItemsPerSegmentConstraint, compute the maximum number of items
         for constraint in constraints:
@@ -222,6 +226,13 @@ class ILP(Algorithm):
                 constraint.initialize_constraint_from_segments(items_remaining_per_segment)
                 for c in constraint.constraints:
                     self.compute_bare_minumum_for_MinItemsPerSegmentConstraint(c, N, segment_bare_minimums)
+            elif isinstance(constraint, MinSegmentsConstraint):
+                minimum_number_of_segments = constraint.min_segments
+                minimum_items_per_segment = self.compute_limit_items(N, constraint.window_size, constraint.min_segments)
+            elif isinstance(constraint, MaxSegmentsConstraint): # no preprecessing needed
+                seqment_quotient = math.ceil(constraint.window_size / constraint.max_segments)
+                minimum_number_of_segments = max(minimum_items_per_segment, constraint.max_segments)
+                minimum_items_per_segment = max(minimum_items_per_segment, min(seqment_quotient+1, N))
 
         # Order the remaining items by score
         remaining_items = {item_id: score for item_id, score in items.items() if item_id not in removed_items}
@@ -255,7 +266,9 @@ class ILP(Algorithm):
 
             for item_segment in item_segments:
                 # decide if to add item - if we do not have enough items or there is a minimum constraint that is not satisfied
-                if self._decision_function(remaining_recomm_len, candidate_items, N, item_segment, min_satisfied):
+                if self._item_decision_function(remaining_recomm_len, candidate_items, N, item_segment, min_satisfied, added_items_per_segment) or \
+                    self._segment_decision_function(item_segment, minimum_number_of_segments, minimum_items_per_segment,
+                                                    added_items_per_segment):
                     candidate_items[item] = score
 
                     if item_segment is not None:
@@ -267,7 +280,9 @@ class ILP(Algorithm):
                             # print(f"[ILP] Segment {item_segment} has enough items {len(added_items_per_segment[item_segment])} >= {min_required_items[item_segment]}")
                     break
 
-            if len(candidate_items) >= N and all(min_satisfied.values()): # all min items constraints are satisfied and we have enough items
+            # all min items constraints are satisfied, we have enough items and enough segments
+            if (len(candidate_items) >= N and all(min_satisfied.values()) and
+                    self._enough_segments_with_min_items(added_items_per_segment, minimum_number_of_segments, minimum_items_per_segment)):
                 break
 
             idx += 1
@@ -283,18 +298,32 @@ class ILP(Algorithm):
                 if len(candidate_items) >= N:
                     break
 
-        if verbose:
+        if self.verbose:
             print(f"[ILP] Total candidate items after preprocessing: {len(candidate_items)} time: {(time.time() - start)*1000} milliseconds")
+            number_of_added_items_per_segment = {segment_id: len(items) for segment_id, items in added_items_per_segment.items()}
+            print(f"Number of added items per segment: {number_of_added_items_per_segment}")
         return candidate_items
 
-    def _decision_function(self, remaining_recomm_len, candidate_items, N, item_segment, min_satisfied) -> bool:
+    def _item_decision_function(self, remaining_recomm_len, candidate_items, N, item_segment, min_satisfied, added_items_per_segment) -> bool:
         # do not take items that have not satisfied min constraints (if we have more partitions on the way
         case1 = (remaining_recomm_len is not None and (len(candidate_items) < N or item_segment in min_satisfied) and not
                 (item_segment in min_satisfied and min_satisfied[item_segment])
                     or (all(min_satisfied.values()) and len(candidate_items) < N))
         # no consecutive recomms -> cam afford to be more greedy
         case2 = (remaining_recomm_len is None and (len(candidate_items) < N or (item_segment in min_satisfied and not min_satisfied[item_segment])))
-        return case1 or case2
+        not_overselecting_segment = (item_segment is None or len(added_items_per_segment[item_segment]) < N)
+        return (case1 or case2) and not_overselecting_segment
+
+    def _enough_segments_with_min_items(self, added_items_per_segment, min_segments, min_items) -> bool:
+        return len([seg for seg, items in added_items_per_segment.items() if len(items) >= min_items]) >= min_segments
+
+    def _segment_decision_function(self, segment, min_segments, min_items, added_items_per_segment) -> bool:
+        segments_with_min_items = [seg for seg, items in added_items_per_segment.items() if len(items) >= min_items]
+        if segment in segments_with_min_items:
+            return False
+        elif len(segments_with_min_items) < min_segments:
+            return True
+        return False
 
     def preprocess_MaxItemsPerSegmentConstraint(self, constraint: MaxItemsPerSegmentConstraint, N: int, items: Dict[str, float],
                                                 segments: Dict[str, Segment], removed_items: Set[str], already_recommended_items: List[str] = None):

@@ -328,10 +328,10 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items})"
 
 
-class MinSegmentDiversityConstraint(Constraint):
+class MinSegmentsConstraint(Constraint):
     """
     Minimum number of segments that should be represented in the final recommendation
-    E.g. Final recommendation should contain at least 2 different genres
+    E.g. Final recommendation should contain at least 2 different genres in every window of size W
     """
 
     def __init__(self, segmentation_property, min_segments, window_size, name="MinSegmentDiversity", weight=1.0, verbose=False):
@@ -358,14 +358,15 @@ class MinSegmentDiversityConstraint(Constraint):
             for segment_id in segment_ids:
                 segment_items = segments[segment_id]
                 model.addConstr(
-                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in segment_items for p in window),
+                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in items if item_id in segment_items for p in window),
                     name=f"y_{self.name}_{row}_{segment_id}_{i}"
                 )
-                for item_id in segment_items:
-                    model.addConstr(
-                        y[row, segment_id, i] >= x[item_id, row, window[0]],
-                        name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
-                    )
+                for item_id in items:
+                    if item_id in segment_items:
+                        model.addConstr(
+                            y[row, segment_id, i] >= x[item_id, row, window[0]], # TODO fix this
+                            name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
+                        )
 
             # constraint on the number of segments in the window
             if self.weight < 1.0:
@@ -402,7 +403,7 @@ class MinSegmentDiversityConstraint(Constraint):
                                                               name=f"y_{self.name}_already_{segment_id}_{i}")
                         model.addConstr(
                             new_y_vars[segment_id] <= quicksum(
-                                x[item_id, row, p] for item_id in segments[segment_id] for p in recomm_positions),
+                                x[item_id, row, p] for item_id in items if item_id in segments[segment_id] for p in recomm_positions),
                             name=f"y_{self.name}_already_constr1_{segment_id}_{i}"
                         )
                         for item_id in segments[segment_id]:
@@ -466,10 +467,10 @@ class MinSegmentDiversityConstraint(Constraint):
         return f"{self.name}(segmentation_property={self.segmentation_property}, min_segments={self.min_segments})"
 
 
-class MaxSegmentDiversityConstraint(Constraint):
+class MaxSegmentsConstraint(Constraint):
     """
     Maximum number of segments that should be represented in the final recommendation
-    E.g. Final recommendation should contain at most 2 different genres
+    E.g. Final recommendation should contain at most 2 different genres in every window of size W
     """
 
     def __init__(self, segmentation_property, max_segments, window_size, name="MaxSegmentDiversity", weight=1.0, verbose=False):
@@ -496,14 +497,16 @@ class MaxSegmentDiversityConstraint(Constraint):
             for segment_id in segment_ids:
                 segment_items = segments[segment_id]
                 model.addConstr(
-                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in segment_items for p in window),
+                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in items if item_id in segment_items for p in window),
                     name=f"y_{self.name}_{row}_{segment_id}_{i}"
                 )
-                for item_id in segment_items:
-                    model.addConstr(
-                        y[row, segment_id, i] >= x[item_id, row, window[0]],
-                        name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
-                    )
+                for item_id in items:
+                    if item_id in segment_items:
+                        for p in window:
+                            model.addConstr(
+                                y[row, segment_id, i] >= x[item_id, row, p],
+                                name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
+                            )
 
             # constraint on the number of segments in the window
             if self.weight < 1.0:
@@ -540,7 +543,7 @@ class MaxSegmentDiversityConstraint(Constraint):
                                                               name=f"y_{self.name}_already_{segment_id}_{i}")
                         model.addConstr(
                             new_y_vars[segment_id] <= quicksum(
-                                x[item_id, row, p] for item_id in segments[segment_id] for p in recomm_positions),
+                                x[item_id, row, p] for item_id in items if item_id in segments[segment_id] for p in recomm_positions),
                             name=f"y_{self.name}_already_constr1_{segment_id}_{i}"
                         )
                         for item_id in segments[segment_id]:

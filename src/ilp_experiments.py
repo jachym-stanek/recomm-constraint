@@ -11,7 +11,7 @@ from src.algorithms.ILP import ILP
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
     ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
-    MinSegmentDiversityConstraint, MaxSegmentDiversityConstraint, ItemUniqueness2D
+    MinSegmentsConstraint, MaxSegmentsConstraint, ItemUniqueness2D
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
@@ -219,13 +219,13 @@ def ILP_basic_test():
     segment_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
     segments = {seg.id: seg for seg in segment_list}
     constraints = [
-        MinSegmentDiversityConstraint(segmentation_property='test-prop', min_segments=2, window_size=3, weight=1.0)
+        MinSegmentsConstraint(segmentation_property='test-prop', min_segments=2, window_size=3, weight=1.0)
     ]
     run_test("Test Case 10", solver, items, segments, constraints, N) # should
 
     # Test Case 11: Test MaxSegmentDiversity simple
     constraints = [
-        MaxSegmentDiversityConstraint(segmentation_property='test-prop', max_segments=3, window_size=5, weight=1.0)
+        MaxSegmentsConstraint(segmentation_property='test-prop', max_segments=3, window_size=5, weight=1.0)
     ]
     run_test("Test Case 11", solver, items, segments, constraints, N) # should fill everything with the most scoring segment
 
@@ -460,6 +460,8 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
     print(f"\n=== {test_name} ===")
     start_time = time.time()
     filtered_items = solver.preprocess_items(items, segments_dict, segments_dict, constraints, item_segment_map, N)
+    if verbose:
+        print(f"Filtered Items: {filtered_items}")
     recommended_items = solver.solve(filtered_items, segments_dict, constraints, N)
 
     all_constraints_satisfied_preprocess = True
@@ -470,22 +472,23 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
         for constraint in constraints:
             if not constraint.check_constraint(recommended_items, items, segments_dict):
                 all_constraints_satisfied_preprocess = False
+                print(f"Constraint {constraint} is not satisfied.")
         if all_constraints_satisfied_preprocess or using_soft_constraints:
             print(f"All constraints are satisfied for preprocessing test.")
-            for position, item_id in recommended_items.items():
-                score = items[item_id]
-                total_score_preprocess += score
-                item_segments = [seg.id for seg in segments if item_id in seg]
-                if verbose:
-                    print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
-            print(f"Total Score: {total_score_preprocess:.1f}")
+        for position, item_id in recommended_items.items():
+            score = items[item_id]
+            total_score_preprocess += score
+            item_segments = [seg.id for seg in segments if item_id in seg]
+            if verbose:
+                print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
+        print(f"Total Score: {total_score_preprocess:.1f}")
     else:
         print(f"No solution found for {test_name}.")
 
     elapsed_time_preprocessing = (time.time() - start_time)*1000
-    print(f"Elapsed time for preprocessing test: {elapsed_time_preprocessing:.4f} milliseconds")
 
     if preprocessing_only:
+        print(f"Elapsed time for preprocessing test: {elapsed_time_preprocessing:.4f} milliseconds")
         return elapsed_time_preprocessing
 
     # Run the test with the original items and segments
@@ -500,19 +503,21 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
         for constraint in constraints:
             if not constraint.check_constraint(recommended_items, items, segments_dict):
                 all_constraints_satisfied = False
+                print(f"Constraint {constraint} is not satisfied.")
         if all_constraints_satisfied or using_soft_constraints:
             print(f"All constraints are satisfied for standard test.")
-            for position, item_id in recommended_items.items():
-                score = items[item_id]
-                total_score += score
-                item_segments = [seg.id for seg in segments if item_id in seg]
-                if verbose:
-                    print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
-            print(f"Total Score: {total_score:.1f}")
+        for position, item_id in recommended_items.items():
+            score = items[item_id]
+            total_score += score
+            item_segments = [seg.id for seg in segments if item_id in seg]
+            if verbose:
+                print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
+        print(f"Total Score: {total_score:.1f}")
     else:
         print(f"No solution found for {test_name}.")
 
     elapsed_time = (time.time() - start_time)*1000
+    print(f"Elapsed time for preprocessing test: {elapsed_time_preprocessing:.4f} milliseconds")
     print(f"Elapsed time for original test: {elapsed_time:.4f} milliseconds")
     print(f"Elapsed time difference: {elapsed_time - elapsed_time_preprocessing:.4f} milliseconds, score difference: {total_score - total_score_preprocess:.4f}")
 
@@ -540,12 +545,12 @@ def ILP_solve_with_already_recommeded_items_test():
     already_recommended_items = ['item-81', 'item-61', 'item-41', 'item-21', 'item-1']
     run_test("Test Case 3", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
-    constraints = [MaxSegmentDiversityConstraint('test-prop', max_segments=3, window_size=3)]
+    constraints = [MaxSegmentsConstraint('test-prop', max_segments=3, window_size=3)]
     already_recommended_items = ['item-1', 'item-21', 'item-41']
     # should fill everything with the most scoring segment
     run_test("Test Case 4", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
-    constraints = [MinSegmentDiversityConstraint('test-prop', min_segments=3, window_size=3)]
+    constraints = [MinSegmentsConstraint('test-prop', min_segments=3, window_size=3)]
     already_recommended_items = ['item-1', 'item-21', 'item-41']
     # should fill everything with the 3 most scoring segments in order
     run_test("Test Case 5", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
@@ -1267,7 +1272,87 @@ def basic_ILP_time_efficiency_test():
     plt.show()
 
 
+def basic_segment_diversity_test():
+    solver = ILP(verbose=True)
+    segmentation_property = 'test-prop'
 
+    # Test Case 1 - segments with descending scores
+    items = {f'item-{i}': i for i in range(1, 101)}
+    segment1 = Segment('segment1', segmentation_property, *list(items.keys())[:20])
+    segment2 = Segment('segment2', segmentation_property, *list(items.keys())[20:40])
+    segment3 = Segment('segment3', segmentation_property, *list(items.keys())[40:60])
+    segment4 = Segment('segment4', segmentation_property, *list(items.keys())[60:80])
+    segment5 = Segment('segment5', segmentation_property, *list(items.keys())[80:100])
+    segments = [segment1, segment2, segment3, segment4, segment5]
+
+    N = 10
+    constraints = [
+        MinSegmentsConstraint(min_segments=2, window_size=5, segmentation_property=segmentation_property),
+        MaxSegmentsConstraint(max_segments=4, window_size=5, segmentation_property=segmentation_property)
+    ]
+    run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=True)
+
+    # Test Case 2 - items with random scores
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segment1 = Segment('segment1', segmentation_property, *list(items.keys())[:20])
+    segment2 = Segment('segment2', segmentation_property, *list(items.keys())[20:40])
+    segment3 = Segment('segment3', segmentation_property, *list(items.keys())[40:60])
+    segment4 = Segment('segment4', segmentation_property, *list(items.keys())[60:80])
+    segment5 = Segment('segment5', segmentation_property, *list(items.keys())[80:100])
+    segments = [segment1, segment2, segment3, segment4, segment5]
+
+    run_test_preprocessing("Test Case 2", solver, items, segments, constraints, N, verbose=True)
+
+    # Test Case 3 - smaller scale test to debug
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 21)}
+    segment1 = Segment('segment1', segmentation_property, *list(items.keys())[:5])
+    segment2 = Segment('segment2', segmentation_property, *list(items.keys())[5:10])
+    segment3 = Segment('segment3', segmentation_property, *list(items.keys())[10:15])
+    segment4 = Segment('segment4', segmentation_property, *list(items.keys())[15:20])
+    segments = [segment1, segment2, segment3, segment4]
+
+    N = 6
+    constraints = [
+        MinSegmentsConstraint(min_segments=2, window_size=5, segmentation_property=segmentation_property),
+        MaxSegmentsConstraint(max_segments=2, window_size=3, segmentation_property=segmentation_property)
+    ]
+    run_test_preprocessing("Test Case 3", solver, items, segments, constraints, N, verbose=True)
+
+    # Test Case 4 - test
+    items = {f'item-{i}': i for i in range(1, 101)}
+    segments = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
+    N = 10
+    constraints = [ MaxSegmentsConstraint(max_segments=5, window_size=5, segmentation_property=segmentation_property) ]
+    run_test_preprocessing("Test Case 4", solver, items, segments, constraints, N, verbose=True) # every recomm slot should be filled with the most scoring segment
+
+    # Test Case 5 - test MaxSegmentsConstraint with randomly scored items
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segments = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(10)]
+    N = 10
+    constraints = [ MaxSegmentsConstraint(max_segments=2, window_size=5, segmentation_property=segmentation_property) ]
+    run_test_preprocessing("Test Case 5", solver, items, segments, constraints, N, verbose=True)
+
+    # Test Case 6 - test MaxSegmentsConstraint with randomly scored items and draconian constraint
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segments = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i * 10:(i + 1) * 10]) for i in
+                range(10)]
+    N = 10
+    constraints = [MaxSegmentsConstraint(max_segments=1, window_size=10, segmentation_property=segmentation_property)]
+    run_test_preprocessing("Test Case 6", solver, items, segments, constraints, N, verbose=True)
+
+    # Test Case 7 - test MaxSegmentsConstraint with selected scores for items
+    items = {f'item-{i}': i for i in range(1, 101)}
+    # segments - each segment will have 10 items, item1 in segment 1, item2 in segment 2, ... item10 in segment 10, item11 in segment 1, ...
+    segments = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i::10]) for i in range(10)]
+    N = 10
+    constraints = [MaxSegmentsConstraint(max_segments=2, window_size=5, segmentation_property=segmentation_property)]
+    run_test_preprocessing("Test Case 7", solver, items, segments, constraints, N, verbose=True)
+
+
+# compare all 3 approaches (no preprocessing, preprocessing, preprocessing + partitioning) in terms of time efficiency
+# graph the effect of increasing N, M, constraint complexity and number of segments in candidate items
+def compare_ILP_approaches_speed():
+    pass
 
 
 
@@ -1277,7 +1362,7 @@ if __name__ == "__main__":
     # ILP_time_efficiency(constraint_weight=0.9)
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
-    ILP_solve_with_already_recommeded_items_test()
+    # ILP_solve_with_already_recommeded_items_test()
     # ILP_partitioning_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
@@ -1287,6 +1372,7 @@ if __name__ == "__main__":
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()
+    basic_segment_diversity_test()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi
