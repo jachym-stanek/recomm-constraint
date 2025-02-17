@@ -8,7 +8,7 @@ from sklearn.utils import deprecated
 from src.dataset import Dataset
 from src.settings import Settings
 from src.segmentation import SegmentationExtractor
-from src.algorithms.ILP import ILP
+from src.algorithms.ILP import IlpSolver
 from src.constraints.constraint import GlobalMaxItemsPerSegmentConstraint, Constraint
 
 
@@ -107,7 +107,7 @@ class Evaluator:
         skipped_users = 0
 
         precomputed_similarities = model.item_knn.compute_similarities(model.item_factors)
-        solver = ILP(verbose=False)
+        solver = IlpSolver(verbose=False)
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]

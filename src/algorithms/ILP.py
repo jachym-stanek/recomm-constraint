@@ -13,7 +13,7 @@ from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint,
     Constraint2D, ItemUniqueness2D, MaxSegmentsConstraint, MinSegmentsConstraint
 
 
-class ILP(Algorithm):
+class IlpSolver(Algorithm):
     def __init__(self, name="ILP", description="Integer Linear Programming Solver", verbose=True):
         super().__init__(name, description, verbose)
 
@@ -94,8 +94,10 @@ class ILP(Algorithm):
                 already_recommended_items.append(item)
                 candidates.pop(item)
                 item_segment = item_segment_map.get(item) # TODO: remove from all possible segments
-                items_remaining_per_segment[item_segment].remove(item)
-                item_segment_map.pop(item)
+                if item_segment is not None:
+                    items_remaining_per_segment[item_segment].remove(item)
+                if item in item_segment_map:
+                    item_segment_map.pop(item)
 
 
             partition_start += partition_size
@@ -151,7 +153,7 @@ class ILP(Algorithm):
 
         # Process each constraint in the constraints list
         for constraint in constraints:
-            constraint.add_to_model(model, x, items, segments, 0, positions, N, K, already_recommended_items)
+            constraint.add_to_ilp_model(model, x, items, segments, 0, positions, N, K, already_recommended_items)
 
         # Objective function: Maximize total score - total penalty
         total_score = quicksum(items[i] * x[i, 0, p] for i in item_ids for p in positions)
@@ -452,7 +454,7 @@ class ILP(Algorithm):
 
             # Process each constraint in the constraints list for the current row
             for constraint in constraints[r]:
-                constraint.add_to_model(model, x, items[r], segments, r, positions, N, K, already_recommended_items=None)
+                constraint.add_to_ilp_model(model, x, items[r], segments, r, positions, N, K, already_recommended_items=None)
 
             # Objective function: Maximize total score - total penalty
             total_score += quicksum(item_pool[i] * x[i, r, p] for i in item_ids for p in positions)

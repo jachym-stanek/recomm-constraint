@@ -7,7 +7,7 @@ import pandas as pd
 import json
 import pickle
 
-from src.algorithms.ILP import ILP
+from src.algorithms.ILP import IlpSolver
 from src.segmentation import Segment
 from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
     ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
@@ -59,7 +59,7 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
 
 
 def ILP_basic_test():
-    solver = ILP()
+    solver = IlpSolver()
 
     # Define items with fixed scores
     items = {
@@ -232,7 +232,7 @@ def ILP_basic_test():
 
 
 def ILP_time_efficiency(constraint_weight=1.0, use_preprocessing=False):
-    solver = ILP()
+    solver = IlpSolver()
     num_recomms = [5, 10, 20, 50, 75, 100, 200, 300, 500] # N
     num_candidates = [10, 50, 100, 200, 500, 1000] # M
     num_constraints = [1, 2, 3, 4, 5, 8, 10, 15] # C
@@ -402,7 +402,7 @@ def plot_results_preprocessing(results: dict):
 
 def items_preprocessing_basic_test():
     N = 10
-    solver = ILP()
+    solver = IlpSolver()
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
     segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 10:(i + 1) * 10]) for i in range(10)]
     segments_dict = {seg.id: seg for seg in segments}
@@ -525,7 +525,7 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
 
 
 def ILP_solve_with_already_recommeded_items_test():
-    solver = ILP()
+    solver = IlpSolver()
     N = 10
     items = {f'item-{i}': 1.0 - i*0.01 for i in range(1, 101)} # Decreasing scores to check diversity
     segments_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 20:(i + 1) * 20]) for i in range(5)]
@@ -559,7 +559,7 @@ def ILP_solve_with_already_recommeded_items_test():
 
 def ILP_partitioning_test():
     verbose = True
-    solver = ILP(verbose=verbose)
+    solver = IlpSolver(verbose=verbose)
     num_items = 1000
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, num_items+1)}
     num_segments = 10
@@ -662,7 +662,7 @@ def ILP_partitioning_time_efficiency():
     num_segments = 20
     results = dict()
     results_preprocessing = dict()
-    solver = ILP(verbose=False)
+    solver = IlpSolver(verbose=False)
 
     for M in num_candidates:
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
@@ -773,7 +773,7 @@ def plot_results_ILP_partitioning(results_file: str):
 
 
 def ILP_solve_for_overlapping_segments():
-    solver = ILP()
+    solver = IlpSolver()
 
     # items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
     # segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:50])
@@ -799,7 +799,7 @@ def ILP_solve_for_overlapping_segments():
 
 def ILP_2D_constraints_test():
     # Test 1 - see if 2D constraints work
-    solver = ILP(verbose=True)
+    solver = IlpSolver(verbose=True)
     print("=============== Test 1 - 2D constraints ===============")
     N = 5
     items1 = {"item1": 20, "item2": 2, "item3": 3, "item4": 2, "item5": 5, "item6": 2, "item7": 7, "item8": 2, "item9": 9, "item10": 2}
@@ -902,7 +902,7 @@ def ILP_2D_constraints_test():
                 print(f"Constraint {constraint} is satisfied.")
 
 def ILP_2D_constraints_test_preprocessing():
-    solver = ILP(verbose=True)
+    solver = IlpSolver(verbose=False)
 
     # test preprocessing works for 2D item uniqueness constraint
     print("=============== Test 1 - item uniqueness only ===============")
@@ -1046,17 +1046,17 @@ def run_test_all_approaches(test_name, solver, items, segments, constraints, N, 
     results["preprocessing"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
     for p in partition_sizes:
-        try:
-            start_time_partitioning = time.time()
-            temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-            # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
-            solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p, item_segment_map=temp_item_segment_map)
-            results["partitioning"][f"{p}"] = dict()
-            results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
-            results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
-            results["partitioning"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
-        except Exception as e:
-            print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
+        # try:
+        start_time_partitioning = time.time()
+        temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+        # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+        solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p, item_segment_map=temp_item_segment_map)
+        results["partitioning"][f"{p}"] = dict()
+        results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
+        results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+        results["partitioning"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        # except Exception as e:
+        #     print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
     if verbose:
         print(f"\n=== {test_name} ===")
         if run_normal:
@@ -1085,7 +1085,7 @@ def compare_ILP_approaches():
     partition_sizes = [5, 8]
     num_segments = 10
     results = dict()
-    solver = ILP(verbose=False)
+    solver = IlpSolver(verbose=False)
     test_verbose = True
     for M in num_candidates:
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
@@ -1223,7 +1223,7 @@ def basic_ILP_time_efficiency_test():
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[2:100:4])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[3:100:4])
     segments = {segment1.id: segment1, segment2.id: segment2, segment3.id: segment3, segment4.id: segment4}
-    solver = ILP(verbose=False)
+    solver = IlpSolver(verbose=False)
 
     results = dict()
 
@@ -1273,7 +1273,7 @@ def basic_ILP_time_efficiency_test():
 
 
 def basic_segment_diversity_test():
-    solver = ILP(verbose=True)
+    solver = IlpSolver(verbose=True)
     segmentation_property = 'test-prop'
 
     # Test Case 1 - segments with descending scores
@@ -1352,8 +1352,140 @@ def basic_segment_diversity_test():
 # compare all 3 approaches (no preprocessing, preprocessing, preprocessing + partitioning) in terms of time efficiency
 # graph the effect of increasing N, M, constraint complexity and number of segments in candidate items
 def compare_ILP_approaches_speed():
-    pass
+    # effect of increasing N
+    segmentation_property = 'test-prop'
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(10)}
+    solver = IlpSolver(verbose=False)
+    # results_increasing_N = dict()
+    # for N in [5, 10, 15, 20, 30, 40, 50]:
+    #     constraints = [
+    #         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
+    #         MinSegmentsConstraint(segmentation_property, 2, 5)
+    #     ]
+    #     results_increasing_N[N] = run_test_all_approaches(f"Test Case N:{N}, M: 100", solver, items, segments, constraints, N, 100, [10], verbose=False)
+    #
+    # # plot results
+    # plt.figure(figsize=(8, 6))
+    # # plot normal approach in blue
+    # plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['normal']['time'] for N in results_increasing_N], marker='o', label='Normal', color='blue')
+    # # plot preprocessing approach in green
+    # plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['preprocessing']['time'] for N in results_increasing_N], marker='o', label='Preprocessing', color='green')
+    # # plot partitioning approach in red
+    # plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['partitioning']['10']['time'] for N in results_increasing_N], marker='o', label='Partitioning (p=10)', color='red')
+    #
+    # plt.title("Time Efficiency of ILP Solver for Increasing Number of Recommendations.\n Using M=100, |S|=10, C={GlobalMaxItems, MinSegments}")
+    # plt.xlabel("Number of Recommendations (N)")
+    # plt.ylabel("Time (milliseconds)")
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.grid()
+    # plt.yticks(range(0, int(results_increasing_N[50]["normal"]["time"]+50), 50))
+    # plt.show()
+    #
+    # # effect of increasing M
+    # results_increasing_M = dict()
+    # for M in [50, 100, 150, 200, 250, 300]:
+    #     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+    #     segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*(M//10):(i+1)*(M//10)]) for i in range(10)}
+    #     constraints = [
+    #         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
+    #         MinSegmentsConstraint(segmentation_property, 2, 5)
+    #     ]
+    #     results_increasing_M[M] = run_test_all_approaches(f"Test Case N:10, M: {M}", solver, items, segments, constraints, 20, M, [10], verbose=False)
+    #
+    # # plot results
+    # plt.figure(figsize=(8, 6))
+    # # plot normal approach in blue
+    # plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['normal']['time'] for M in results_increasing_M], marker='o', label='Normal', color='blue')
+    # # plot preprocessing approach in green
+    # plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['preprocessing']['time'] for M in results_increasing_M], marker='o', label='Preprocessing', color='green')
+    # # plot partitioning approach in red
+    # plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['partitioning']['10']['time'] for M in results_increasing_M], marker='o', label='Partitioning (p=10)', color='red')
+    #
+    # plt.title("Time Efficiency of ILP Solver for Increasing Number of Candidates.\n Using N=20, |S|=10, C={GlobalMaxItems, MinSegments}")
+    # plt.xlabel("Number of Candidates (M)")
+    # plt.ylabel("Time (milliseconds)")
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.grid()
+    # plt.yticks(range(0, int(results_increasing_M[250]["normal"]["time"]+50), 50))
+    # plt.show()
+    #
+    # # effect of increasing number of segments in candidate items
+    # results_increasing_S = dict()
+    # M = 200
+    # N = 20
+    # for S in [5, 10, 15, 20, 25, 30, 50]:
+    #     print(f"Running test for S={S}")
+    #     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+    #     segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*(M//S):(i+1)*(M//S)]) for i in range(S)}
+    #     constraints = [
+    #         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
+    #         MinSegmentsConstraint(segmentation_property, 2, 5)
+    #     ]
+    #     results_increasing_S[S] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, items, segments, constraints, N, M, [10], verbose=False)
+    #
+    # # plot results
+    # plt.figure(figsize=(8, 6))
+    # # plot normal approach in blue
+    # plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['normal']['time'] for S in results_increasing_S], marker='o', label='Normal', color='blue')
+    # # plot preprocessing approach in green
+    # plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['preprocessing']['time'] for S in results_increasing_S], marker='o', label='Preprocessing', color='green')
+    # # plot partitioning approach in red
+    # plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['partitioning']['10']['time'] for S in results_increasing_S], marker='o', label='Partitioning (p=10)', color='red')
+    #
+    # plt.title("Time Efficiency of ILP Solver for Increasing Number of Segments in Candidate Items.\n Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
+    # plt.xlabel("Number of Segments in Candidate Items (|S|)")
+    # plt.ylabel("Time (milliseconds)")
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.grid()
+    # plt.yticks(range(0, int(results_increasing_S[25]["normal"]["time"]+50), 50))
+    # plt.show()
 
+    # effect of increasing complexity of constraints
+    constraints1 = [ GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5) ]
+    constraints2 = [ GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
+                     MinSegmentsConstraint(segmentation_property, 2, 5)
+    ]
+    constraints3 = [ GlobalMaxItemsPerSegmentConstraint(segmentation_property, 2, 5),
+                     GlobalMinItemsPerSegmentConstraint(segmentation_property, 1, 15),
+                     MinSegmentsConstraint(segmentation_property, 2, 5),
+    ]
+    constraints4 = [ GlobalMaxItemsPerSegmentConstraint(segmentation_property, 2, 5),
+                     GlobalMinItemsPerSegmentConstraint(segmentation_property, 1, 15),
+                     MinSegmentsConstraint(segmentation_property, 2, 5),
+                     MaxSegmentsConstraint(segmentation_property, 2, 3)
+    ]
+    constraints = [constraints1, constraints2, constraints3]
+    results_increasing_C = dict()
+    N = 20
+    M = 200
+    S = 10
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+    segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*(M//S):(i+1)*(M//S)]) for i in range(S)}
+    for i, constraint in enumerate(constraints):
+        print(f"Running test for constraint {i+1}")
+        results_increasing_C[i] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, items, segments, constraint, N, M, [10], verbose=False)
+
+    # plot results
+    plt.figure(figsize=(8, 6))
+    # plot normal approach in blue
+    plt.plot(range(len(constraints)), [results_increasing_C[i]['normal']['time'] for i in results_increasing_C], marker='o', label='Normal', color='blue')
+    # plot preprocessing approach in green
+    plt.plot(range(len(constraints)), [results_increasing_C[i]['preprocessing']['time'] for i in results_increasing_C], marker='o', label='Preprocessing', color='green')
+    # plot partitioning approach in red
+    plt.plot(range(len(constraints)), [results_increasing_C[i]['partitioning']['10']['time'] for i in results_increasing_C], marker='o', label='Partitioning (p=10)', color='red')
+
+    plt.title("Time Efficiency of ILP Solver for Increasing Complexity of Constraints.\n Using N=20, M=200, |S|=10")
+    plt.xlabel("Number of Constraints")
+    plt.ylabel("Time (milliseconds)")
+    plt.legend()
+    plt.tight_layout()
+    plt.grid()
+    plt.yticks(range(0, int(results_increasing_C[2]["normal"]["time"]+50), 50))
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -1372,7 +1504,8 @@ if __name__ == "__main__":
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()
-    basic_segment_diversity_test()
+    # basic_segment_diversity_test()
+    compare_ILP_approaches_speed()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi

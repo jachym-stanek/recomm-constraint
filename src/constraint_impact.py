@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix
 
-from src.algorithms.ILP import ILP
+from src.algorithms.ILP import IlpSolver
 from src.data_split import DataSplitter
 from src.segmentation import SegmentationExtractor
 from src.settings import Settings
@@ -41,7 +41,7 @@ def measure_constraint_impact():
     model.train(train_dataset)
 
     precomputed_similarities = model.item_knn.compute_similarities(model.item_factors, K)
-    solver = ILP(verbose=False)
+    solver = IlpSolver(verbose=False)
 
     for W in window_sizes:
         constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property=segmentation_property, max_items=1, window_size=W, weight=1.0, verbose=False)]
