@@ -15,15 +15,15 @@ from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint,
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
-             partition_size=None, verbose=True):
+             partition_size=None, verbose=True, return_first_feasible=False):
     print(f"\n=== {test_name} ===")
     start_time = time.time()
     item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
     if partition_size is not None:
         recommended_items = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=partition_size,
-                                                         item_segment_map=item_segment_map, use_doubling=False)
+                                                         item_segment_map=item_segment_map, look_ahead=False)
     else:
-        recommended_items = solver.solve(items, segments, constraints, N, already_recommended_items)
+        recommended_items = solver.solve(items, segments, constraints, N, already_recommended_items, return_first_feasible)
     print(f"Recommended Items: {recommended_items}")
 
     # Check constraints
@@ -446,7 +446,7 @@ def items_preprocessing_basic_test():
     run_test("Test Case Normal", solver, items, segments, constraints, N, using_soft_constraints=True)
 
 def run_test_preprocessing(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, verbose=False,
-                           preprocessing_only=False):
+                           preprocessing_only=False, return_first_feasible=False):
     segments_dict = {seg.id: seg for seg in segments}
     # item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
     item_segment_map = dict()
@@ -462,7 +462,7 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
     filtered_items = solver.preprocess_items(items, segments_dict, segments_dict, constraints, item_segment_map, N)
     if verbose:
         print(f"Filtered Items: {filtered_items}")
-    recommended_items = solver.solve(filtered_items, segments_dict, constraints, N)
+    recommended_items = solver.solve(filtered_items, segments_dict, constraints, N, return_first_feasible=return_first_feasible)
 
     all_constraints_satisfied_preprocess = True
     total_score_preprocess = 0
@@ -493,7 +493,7 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
 
     # Run the test with the original items and segments
     start_time = time.time()
-    recommended_items = solver.solve(items, segments_dict, constraints, N)
+    recommended_items = solver.solve(items, segments_dict, constraints, N, return_first_feasible=return_first_feasible)
 
     all_constraints_satisfied = True
     total_score = 0
@@ -705,7 +705,7 @@ def ILP_partitioning_time_efficiency():
                     print(f"Error in Test Case N:{N}, M: {M}, p:{p}, Both partitioning: {e}")
 
     # save results to a file
-    with open('results_ILP_partitioning_time_efficiency.txt', 'w') as f:
+    with open('../results_ILP_partitioning_time_efficiency.txt', 'w') as f:
         for key, value in results.items():
             f.write(f"{key}: {value}\n")
     with open('results_ILP_partitioning_time_efficiency_preprocessing_only.txt', 'w') as f:
@@ -1028,7 +1028,7 @@ def check_constraints(recommended_items, items, segments, constraints):
 
 def run_test_all_approaches(test_name, solver, items, segments, constraints, N, M, partition_sizes: list, using_soft_constraints=False,
                             verbose=False, run_normal=True):
-    results = {"normal": dict(), "preprocessing": dict(), "partitioning": dict()}
+    results = {"normal": dict(), "preprocessing": dict(), "preprocessing_first_feasible": dict(), "partitioning": dict(), "partitioning_look_ahead": dict()}
     if run_normal:
         start_time_normal = time.time()
         solution = solver.solve(items, segments, constraints, N)
@@ -1045,18 +1045,37 @@ def run_test_all_approaches(test_name, solver, items, segments, constraints, N, 
     results["preprocessing"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
     results["preprocessing"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
+    start_time_preprocessing = time.time()
+    filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+    solution = solver.solve(filtered_items, segments, constraints, N, return_first_feasible=True)
+    results["preprocessing_first_feasible"]["time"] = (time.time() - start_time_preprocessing)*1000
+    results["preprocessing_first_feasible"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+    results["preprocessing_first_feasible"]["score"] = sum([items[item_id] for item_id in solution.values()])
+
     for p in partition_sizes:
         # try:
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
         # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
-        solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p, item_segment_map=temp_item_segment_map)
+        solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p,
+                                                item_segment_map=temp_item_segment_map)
         results["partitioning"][f"{p}"] = dict()
         results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
         results["partitioning"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
         # except Exception as e:
         #     print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
+
+        # solve with look ahead
+        start_time_partitioning = time.time()
+        temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+        solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p,
+                                                item_segment_map=temp_item_segment_map, look_ahead=True)
+        results["partitioning_look_ahead"][f"{p}"] = dict()
+        results["partitioning_look_ahead"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
+        results["partitioning_look_ahead"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+        results["partitioning_look_ahead"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+
     if verbose:
         print(f"\n=== {test_name} ===")
         if run_normal:
@@ -1068,6 +1087,10 @@ def run_test_all_approaches(test_name, solver, items, segments, constraints, N, 
         print(f"Time: {results['preprocessing']['time']:.4f} ms")
         print(f"Constraints satisfied: {results['preprocessing']['constraints_satisfied']}")
         print(f"Total score: {results['preprocessing']['score']:.1f}")
+        print("Preprocessing + First Feasible:")
+        print(f"Time: {results['preprocessing_first_feasible']['time']:.4f} ms")
+        print(f"Constraints satisfied: {results['preprocessing_first_feasible']['constraints_satisfied']}")
+        print(f"Total score: {results['preprocessing_first_feasible']['score']:.1f}")
         for key, value in results["partitioning"].items():
             print(f"Partition size: {key}")
             print(f"Time: {value['time']:.4f} ms")
@@ -1126,7 +1149,7 @@ def compare_ILP_approaches():
                                                       constraints, N, M, partition_sizes, verbose=test_verbose, run_normal=run_test_case_normal)
 
     # save results to a file
-    with open("results_ILP_compare_approaches.pkl", "wb") as file:
+    with open("../results_ILP_compare_approaches.pkl", "wb") as file:
         pickle.dump(results, file)
 
 def plot_results_all_approaches(results_file: str):
@@ -1488,6 +1511,38 @@ def compare_ILP_approaches_speed():
     plt.show()
 
 
+def ilp_return_first_feasible_test():
+    # compare results of first feasible and optimal in terms of score and time
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
+    segment1 = Segment('segment1', 'test-prop', *list(items.keys())[0:100:4])
+    segment2 = Segment('segment2', 'test-prop', *list(items.keys())[1:100:4])
+    segment3 = Segment('segment3', 'test-prop', *list(items.keys())[2:100:4])
+    segment4 = Segment('segment4', 'test-prop', *list(items.keys())[3:100:4])
+    segments = [segment1, segment2, segment3, segment4]
+    solver = IlpSolver(verbose=False)
+    N = 20
+    constraints = [
+        GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 5),
+        MinSegmentsConstraint('test-prop', 2, 4)
+    ]
+    run_test_preprocessing("Test Case 1 First Feasible", solver, items, segments, constraints, N, verbose=True, return_first_feasible=True)
+    run_test_preprocessing("Test Case 1 Optimal", solver, items, segments, constraints, N, verbose=True)
+
+    # test case 2
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
+    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(10)]
+    N = 20
+    constraints = [
+        GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10),
+        MinSegmentsConstraint('test-prop', 2, 4)
+    ]
+    run_test_preprocessing("Test Case 2 First Feasible", solver, items, segments, constraints, N, verbose=True, return_first_feasible=True)
+    run_test_preprocessing("Test Case 2 Optimal", solver, items, segments, constraints, N, verbose=True)
+
+    constraints = [GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10)]
+    run_test_preprocessing("Test Case 2 First Feasible", solver, items, segments, constraints, N, verbose=True, return_first_feasible=True)
+    run_test_preprocessing("Test Case 2 Optimal", solver, items, segments, constraints, N, verbose=True)
+
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
@@ -1505,7 +1560,8 @@ if __name__ == "__main__":
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()
     # basic_segment_diversity_test()
-    compare_ILP_approaches_speed()
+    # compare_ILP_approaches_speed()
+    ilp_return_first_feasible_test()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi

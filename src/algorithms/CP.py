@@ -83,7 +83,6 @@ class CpSolver:
 ###############################################
 
 if __name__ == "__main__":
-    # Example candidate items (item id -> score)
     items = {
         'item1': 9.0,
         'item2': 8.5,
@@ -112,11 +111,7 @@ if __name__ == "__main__":
         MaxSegmentsConstraint(segmentation_property='genre', max_segments=1, window_size=3)
     ]
 
-    # Number of recommendation positions and window size.
     N = 5
-    window_size = 5
-
-    # Instantiate the CPRefactored solver.
     cp_solver = CpSolver(items, segments, constraints, N)
 
     # Solve for the optimal solution.

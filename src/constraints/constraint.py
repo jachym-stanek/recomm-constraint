@@ -99,10 +99,13 @@ class MinItemsPerSegmentConstraint(Constraint):
 
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        if type(solution) is dict:
+            solution = list(solution.values())
+
         N = len(solution)
         segment_items = segments[self.segment_id]
         for i in range(N - self.window_size + 1):
-            window = list(solution.values())[i:i + self.window_size]
+            window = solution[i:i + self.window_size]
             count = sum(1 for item_id in window if item_id in segment_items)
             if count < self.min_items:
                 return False
@@ -112,7 +115,7 @@ class MinItemsPerSegmentConstraint(Constraint):
             counter_start = self.window_size - N if self.window_size > N else 1
             counter_end = min(self.window_size, len(already_recommended_items))
             for i in range(counter_start, counter_end):
-                recomm_positions = list(solution.values())[:self.window_size-i]
+                recomm_positions = solution[:self.window_size-i]
                 num_already_recommended = sum(1 for item_id in already_recommended_items[-i:] if item_id in segment_items)
                 count = sum(1 for item_id in recomm_positions if item_id in segment_items) + num_already_recommended
                 if count < self.min_items:
@@ -185,10 +188,13 @@ class MaxItemsPerSegmentConstraint(Constraint):
             model.Add(sum(x[item, p] for item in items if item in seg for p in window) <= self.max_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        if type(solution) is dict:
+            solution = list(solution.values())
+
         N = len(solution)
         segment_items = segments[self.segment_id]
         for i in range(N - self.window_size + 1):
-            window = list(solution.values())[i:i + self.window_size]
+            window = solution[i:i + self.window_size]
             count = sum(1 for item_id in window if item_id in segment_items)
             if count > self.max_items:
                 return False
@@ -198,7 +204,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
             counter_start = self.window_size - N if self.window_size > N else 1
             counter_end = min(self.window_size, len(already_recommended_items))
             for i in range(counter_start, counter_end):
-                recomm_positions = list(solution.values())[:self.window_size-i]
+                recomm_positions = solution[:self.window_size-i]
                 num_already_recommended = sum(1 for item_id in already_recommended_items[-i:] if item_id in segment_items)
                 count = sum(1 for item_id in recomm_positions if item_id in segment_items) + num_already_recommended
                 if count > self.max_items:
@@ -235,7 +241,10 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         segment_items = segments[self.segment_id]
-        item_id = solution.get(self.position)
+        if type(solution) is dict:
+            item_id = solution.get(self.position)
+        else:
+            item_id = solution[self.position-1] # position is 1-indexed
         return item_id in segment_items
 
     def __repr__(self):
@@ -266,7 +275,10 @@ class ItemAtPositionConstraint(Constraint):
             )
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
-        return solution.get(self.position) == self.item_id
+        if type(solution) is dict:
+            return solution.get(self.position) == self.item_id
+        else:
+            return solution[self.position-1] == self.item_id
 
     def __repr__(self):
         return f"{self.name}(item_id={self.item_id}, position={self.position})"
@@ -477,6 +489,9 @@ class MinSegmentsConstraint(Constraint):
             model.Add(sum(y_vars[seg.id] for seg in seg_list) >= self.min_segments)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        if type(solution) is dict:
+            solution = list(solution.values())
+
         segment_ids = set()
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
@@ -484,7 +499,7 @@ class MinSegmentsConstraint(Constraint):
 
         N = len(solution)
         for i in range(N - self.window_size + 1):
-            window = list(solution.values())[i:i + self.window_size]
+            window = solution[i:i + self.window_size]
             segments_in_window = set()
             for item_id in window:
                 for segment_id in segment_ids:
@@ -497,7 +512,7 @@ class MinSegmentsConstraint(Constraint):
             counter_start = self.window_size - N if self.window_size > N else 1
             counter_end = min(self.window_size, len(already_recommended_items) + 1)
             for i in range(counter_start, counter_end):
-                recomm_positions = list(solution.values())[:self.window_size - i]
+                recomm_positions = solution[:self.window_size - i]
                 already_recommended_item_in_window = already_recommended_items[-i:]
                 segments_in_window = set()
                 for item_id in recomm_positions:
@@ -631,6 +646,9 @@ class MaxSegmentsConstraint(Constraint):
             model.Add(sum(y_vars[seg.id] for seg in seg_list) <= self.max_segments)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        if type(solution) is dict:
+            solution = list(solution.values())
+
         segment_ids = set()
         for segment_id in segments:
             if segments[segment_id].property == self.segmentation_property:
@@ -638,7 +656,7 @@ class MaxSegmentsConstraint(Constraint):
 
         N = len(solution)
         for i in range(N - self.window_size + 1):
-            window = list(solution.values())[i:i + self.window_size]
+            window = solution[i:i + self.window_size]
             segments_in_window = set()
             for item_id in window:
                 for segment_id in segment_ids:
@@ -651,7 +669,7 @@ class MaxSegmentsConstraint(Constraint):
             counter_start = self.window_size - N if self.window_size > N else 1
             counter_end = min(self.window_size, len(already_recommended_items) + 1)
             for i in range(counter_start, counter_end):
-                recomm_positions = list(solution.values())[:self.window_size - i]
+                recomm_positions = solution[:self.window_size - i]
                 already_recommended_item_in_window = already_recommended_items[-i:]
                 segments_in_window = set()
                 for item_id in recomm_positions:
@@ -693,7 +711,7 @@ class ItemUniqueness2D(Constraint2D):
                             name=f"{self.name}_{window_start_row}_{window_start_col}_{i}"
                         )
 
-    def check_constraint(self, solution, num_rows, num_cols):
+    def check_constraint(self, solution: dict, num_rows, num_cols):
         for window_start_row in range(num_rows - self.height + 1):
             for window_start_col in range(num_cols - self.width + 1):
                 items_in_window = set()

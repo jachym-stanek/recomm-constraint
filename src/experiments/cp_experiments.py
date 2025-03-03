@@ -160,9 +160,15 @@ def compare_ilp_and_cp():
     # plot results
     plt.figure(figsize=(8, 6))
     # plot preprocessing approach in green
-    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing', color='green')
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing  Optimal', color='green')
+    # plot preprocessing with first feasible
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing_first_feasible']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing First Feasible', color='blue')
     # plot partitioning approach in red
     plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['partitioning']['10']['time'] for N in results_increasing_N], marker='o', label='ILP Partitioning (p=10)', color='red')
+    # plot look ahead approach in cyan
+    plt.plot(list(results_increasing_N.keys()),
+             [results_increasing_N[N]['ilp']['partitioning_look_ahead']['10']['time'] for N in results_increasing_N],
+             marker='o', label='ILP Look Ahead', color='cyan')
     # plot cp preprocessing optimal approach in orange
     # plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['cp']['preprocessing_optimal']['time'] for N in results_increasing_N], marker='o', label='CP Preprocessing Optimal', color='orange')
     # plot cp preprocessing first feasible approach in purple
@@ -175,6 +181,27 @@ def compare_ilp_and_cp():
     plt.tight_layout()
     plt.grid()
     plt.yticks(range(0, int(results_increasing_N[50]['cp']['preprocessing_first_feasible']["time"]+50), 50))
+    plt.show()
+
+    # separate plot for cp preprocessing optimal, cp preprocessing first feasible and ilp preprocessing optimal
+    plt.figure(figsize=(8, 6))
+    # plot preprocessing approach in green
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing Optimal', color='green')
+    # plot preprocessing with first feasible
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing_first_feasible']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing First Feasible', color='blue')
+    # plot cp preprocessing optimal approach in orange
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['cp']['preprocessing_optimal']['time'] for N in results_increasing_N], marker='o', label='CP Preprocessing Optimal', color='orange')
+    # plot cp preprocessing first feasible approach in purple
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['cp']['preprocessing_first_feasible']['time'] for N in results_increasing_N], marker='o', label='CP Preprocessing First Feasible', color='purple')
+
+    plt.title(
+        "Time Efficiency of ILP and CP Solvers for Increasing Number of Recommendations.\n Using M=100, |S|=10, C={GlobalMaxItems, MinSegments}")
+    plt.xlabel("Number of Recommendations (N)")
+    plt.ylabel("Time (milliseconds)")
+    plt.legend()
+    plt.tight_layout()
+    plt.grid()
+    # plt.yticks(range(0, int(results_increasing_N[50]['cp']['preprocessing_optimal']["time"] + 50), 50))
     plt.show()
 
     # --- effect of increasing M ---
@@ -193,9 +220,16 @@ def compare_ilp_and_cp():
     # plot results
     plt.figure(figsize=(8, 6))
     # plot preprocessing approach in green
-    plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['preprocessing']['time'] for M in results_increasing_M], marker='o', label='Preprocessing', color='green')
+    plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['preprocessing']['time'] for M in results_increasing_M], marker='o', label='ILP Preprocessing  Optimal', color='green')
+    # plot preprocessing with first feasible
+    plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['preprocessing_first_feasible']['time'] for M in results_increasing_M], marker='o', label='ILP Preprocessing First Feasible', color='blue')
     # plot partitioning approach in red
     plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['partitioning']['10']['time'] for M in results_increasing_M], marker='o', label='Partitioning (p=10)', color='red')
+    # plot look ahead approach in cyan
+    plt.plot(list(results_increasing_M.keys()),
+             [results_increasing_M[M]['ilp']['partitioning_look_ahead']['10']['time'] for M in results_increasing_M],
+             marker='o', label='ILP Look Ahead', color='cyan')
+
     # plot cp preprocessing first feasible approach in purple
     plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['cp']['preprocessing_first_feasible']['time'] for M in results_increasing_M], marker='o', label='CP Preprocessing First Feasible', color='purple')
 
@@ -212,7 +246,7 @@ def compare_ilp_and_cp():
     results_increasing_S = dict()
     M = 200
     N = 20
-    for S in [5, 10, 15, 20, 25, 30, 50]:
+    for S in [5, 10, 15, 20, 25, 30, 40, 50]:
         print(f"Running test for S={S}")
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
         segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*(M//S):(i+1)*(M//S)]) for i in range(S)}
@@ -227,13 +261,19 @@ def compare_ilp_and_cp():
     # plot results
     plt.figure(figsize=(8, 6))
     # plot preprocessing approach in green
-    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['preprocessing']['time'] for S in results_increasing_S], marker='o', label='Preprocessing', color='green')
+    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['preprocessing']['time'] for S in results_increasing_S], marker='o', label='ILP Preprocessing Optimal', color='green')
+    # plot preprocessing with first feasible
+    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['preprocessing_first_feasible']['time'] for S in results_increasing_S], marker='o', label='Preprocessing First Feasible', color='blue')
     # plot partitioning approach in red
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['partitioning']['10']['time'] for S in results_increasing_S], marker='o', label='Partitioning (p=10)', color='red')
+    # plot look ahead approach in cyan
+    plt.plot(list(results_increasing_S.keys()),
+             [results_increasing_S[S]['ilp']['partitioning_look_ahead']['10']['time'] for S in results_increasing_S],
+             marker='o', label='ILP Look Ahead', color='cyan')
     # plot cp preprocessing first feasible approach in purple
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['cp']['preprocessing_first_feasible']['time'] for S in results_increasing_S], marker='o', label='CP Preprocessing First Feasible', color='purple')
 
-    plt.title("Time Efficiency of ILP and CP Solvers for Increasing Number of Segments in Candidate Items.\n Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
+    plt.title("Time Efficiency of ILP and CP Solvers for Increasing Number of Segments\n Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
     plt.xlabel("Number of Segments in Candidate Items (|S|)")
     plt.ylabel("Time (milliseconds)")
     plt.legend()
@@ -243,8 +283,41 @@ def compare_ilp_and_cp():
     plt.show()
 
 
+def filtered_items_per_nubmer_of_segments():
+    segmentation_property = 'test-prop'
+    solver = IlpSolver(verbose=False)
+    results = []
+    M = 200
+    N = 20
+    for S in [5, 10, 15, 20, 25, 30, 40, 50]:
+        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
+        segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property,
+                                           *list(items.keys())[i * (M // S):(i + 1) * (M // S)]) for i in range(S)}
+        constraints = [
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
+            MinSegmentsConstraint(segmentation_property, 2, 5)
+        ]
+        item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+        filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+        results.append((S, len(filtered_items)))
+
+    print(results)
+    # plot results
+    plt.figure(figsize=(8, 6))
+    sns.set_style("whitegrid")
+    sns.set_palette("husl")
+    sns.set_context("notebook", font_scale=1.5)
+
+    sns.barplot(x=[result[0] for result in results], y=[result[1] for result in results])
+    plt.title("Number of Filtered Items for Increasing Number of Segments in Candidate Items \n"
+              "Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
+    plt.xlabel("Number of Segments in Candidate Items (|S|)")
+    plt.ylabel("Number of Filtered Items")
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == '__main__':
     compare_ilp_and_cp()
+    # filtered_items_per_nubmer_of_segments()
     # basic_test_cp()

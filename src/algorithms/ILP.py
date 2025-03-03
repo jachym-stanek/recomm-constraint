@@ -17,8 +17,9 @@ class IlpSolver(Algorithm):
     def __init__(self, name="ILP", description="Integer Linear Programming Solver", verbose=True):
         super().__init__(name, description, verbose)
 
-    def solve_by_partitioning(self, items: Dict[str, float], segments: Dict[str, Segment], constraints: List[Constraint], N: int,
-                              partition_size: int, item_segment_map: Dict[str, str], use_doubling: bool = False):
+    def solve_by_partitioning(self, items: Dict[str, float], segments: Dict[str, Segment],
+                              constraints: List[Constraint], N: int, partition_size: int,
+                              item_segment_map: Dict[str, str], look_ahead: bool = False):
         start_time = time.time()
 
         temp_item_segment_map = item_segment_map.copy()
@@ -39,7 +40,7 @@ class IlpSolver(Algorithm):
         while len(final_result) < N:
             if self.verbose:
                 print("===================================== Partitioning ======================================")
-            if use_doubling:
+            if look_ahead:
                 partition_count = min(partition_size * 2, N - len(final_result))
             else:
                 partition_count = min(partition_size, N - len(final_result))
@@ -84,7 +85,7 @@ class IlpSolver(Algorithm):
             partition_result = self.solve(partition_candidates, segments, partition_constraints, partition_count, already_recommended_items)
 
             # take only half
-            if use_doubling:
+            if look_ahead:
                 taken_until = min(partition_size, len(partition_result))
                 partition_result = {k: v for k, v in partition_result.items() if k <= taken_until}
 
@@ -110,7 +111,7 @@ class IlpSolver(Algorithm):
         return final_result
 
     def solve(self, items: Dict[str, float], segments: Dict[str, Segment], constraints: List[Constraint], N: int,
-              already_recommended_items: List[str] = None):
+              already_recommended_items: List[str] = None, return_first_feasible: bool = False):
         start = time.time()
 
         if self.verbose:
@@ -118,6 +119,9 @@ class IlpSolver(Algorithm):
 
         model = Model("RecommenderSystem")
         model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+
+        if return_first_feasible:
+            model.setParam("SolutionLimit", 1)
 
         item_ids = list(items.keys())
         positions = list(range(1, N + 1))
@@ -165,7 +169,7 @@ class IlpSolver(Algorithm):
         result = None
 
         # Check if the model found an optimal solution
-        if model.Status == GRB.OPTIMAL:
+        if model.Status == GRB.OPTIMAL or (return_first_feasible and model.Status == GRB.SOLUTION_LIMIT):
             # Extract the solution
             solution = {}
             for i in item_ids:
