@@ -1,3 +1,9 @@
+############################################
+# DISCLAIMER
+# This code in its current  state might not be runnable as it was not updated thoroughly after every refactoring.
+# It is meant to be used as a reference for the experiments conducted in the thesis.
+############################################
+
 import random
 import time
 import matplotlib.pyplot as plt
@@ -10,6 +16,7 @@ import pickle
 from src.algorithms.ILP import IlpSolver
 from src.algorithms.CP import CpSolver
 from src.algorithms.InformedDFS import IdfsSolver
+from src.algorithms.Preprocessor import ItemPreprocessor
 from src.segmentation import Segment
 from src.constraints.constraint import *
 from ilp_experiments import run_test as run_ilp_test
@@ -33,14 +40,14 @@ def run_test_idfs(test_name, items, segments, constraints, N):
     results["normal"]["constraints_satisfied"] = constraints_satisfied
 
     # Preprocessing branch with a fresh solver
-    ilp_solver = IlpSolver(verbose=False)
+    item_preprocessor = ItemPreprocessor(verbose=False)
     start_time = time.perf_counter()
     item_segment_map = {}
     for seg_id, segment in segments.items():
         for item_id in segment:
             item_segment_map.setdefault(item_id, []).append(seg_id)
 
-    filtered_items = ilp_solver.preprocess_items(items, segments.copy(), segments.copy(), constraints, item_segment_map, N)
+    filtered_items = item_preprocessor.preprocess_items(items, segments.copy(), segments.copy(), constraints, item_segment_map, N)
     solver_pre = IdfsSolver()
     solution = solver_pre.solve(filtered_items, segments, constraints, N)
     solution_time = (time.perf_counter() - start_time) * 1000  # convert to ms
@@ -112,9 +119,10 @@ def basic_test_dfs():
     print(f"Constraints satisfied: {constraints_satisfied}")
 
     # compare to ILP
+    preprocessor = ItemPreprocessor(verbose=False)
     solver = IlpSolver(verbose=False)
     segments_dict = {seg.id: seg for seg in segments.values()}
-    results_ilp = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, items, segments_dict, constraints, N, 100, [10],
+    results_ilp = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, preprocessor, items, segments_dict, constraints, N, 100, [10],
                                 verbose=False)
     print(f"ILP: {results_ilp}")
 
@@ -159,7 +167,7 @@ def basic_test_dfs():
     print(f"Score: {score}")
     print(f"Constraints satisfied: {constraints_satisfied}")
 
-    results = run_test_idfs(f"Test Case N:{N}, M: 100", solver, items, segments_dict, constraints, N)
+    results = run_test_idfs(f"Test Case N:{N}, M: 100", items, segments_dict, constraints, N)
     print(f"IDFS time with run_test: {results['normal']['time']} ms")
 
     # Test 5 N=20, M=500, S=50
@@ -214,7 +222,7 @@ def idfs_speed_efficiency():
 
 
 if __name__ == "__main__":
-    # basic_test_dfs()
+    basic_test_dfs()
     idfs_speed_efficiency()
     # zkusit udelat poradne zateze (testy s nahodnymi constrainty, testy s nesplnitelnymi constrainty)
     # udelat nejake testy na soft constrainty

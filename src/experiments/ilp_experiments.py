@@ -1,3 +1,9 @@
+############################################
+# DISCLAIMER
+# This code in its current  state might not be runnable as it was not updated thoroughly after every refactoring.
+# It is meant to be used as a reference for the experiments conducted in the thesis.
+############################################
+
 import random
 import time
 import matplotlib.pyplot as plt
@@ -1026,7 +1032,7 @@ def check_constraints(recommended_items, items, segments, constraints):
     return all_constraints_satisfied
 
 
-def run_test_all_approaches(test_name, solver, items, segments, constraints, N, M, partition_sizes: list, using_soft_constraints=False,
+def run_test_all_approaches(test_name, solver, preprocessor, items, segments, constraints, N, M, partition_sizes: list, using_soft_constraints=False,
                             verbose=False, run_normal=True):
     results = {"normal": dict(), "preprocessing": dict(), "preprocessing_first_feasible": dict(), "partitioning": dict(), "partitioning_look_ahead": dict()}
     if run_normal:
@@ -1039,14 +1045,14 @@ def run_test_all_approaches(test_name, solver, items, segments, constraints, N, 
     item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
 
     start_time_preprocessing = time.time()
-    filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
     solution = solver.solve(filtered_items, segments, constraints, N)
     results["preprocessing"]["time"] = (time.time() - start_time_preprocessing)*1000
     results["preprocessing"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
     results["preprocessing"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
     start_time_preprocessing = time.time()
-    filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
     solution = solver.solve(filtered_items, segments, constraints, N, return_first_feasible=True)
     results["preprocessing_first_feasible"]["time"] = (time.time() - start_time_preprocessing)*1000
     results["preprocessing_first_feasible"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
@@ -1057,8 +1063,8 @@ def run_test_all_approaches(test_name, solver, items, segments, constraints, N, 
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
         # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
-        solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p,
-                                                item_segment_map=temp_item_segment_map)
+        solution = solver.solve_by_partitioning(preprocessor, items, segments, constraints, N, partition_size=p,
+                                                      item_segment_map=temp_item_segment_map)
         results["partitioning"][f"{p}"] = dict()
         results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
@@ -1069,8 +1075,8 @@ def run_test_all_approaches(test_name, solver, items, segments, constraints, N, 
         # solve with look ahead
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-        solution = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=p,
-                                                item_segment_map=temp_item_segment_map, look_ahead=True)
+        solution = solver.solve_by_partitioning(preprocessor, items, segments, constraints, N, partition_size=p,
+                                                      item_segment_map=temp_item_segment_map, look_ahead=True)
         results["partitioning_look_ahead"][f"{p}"] = dict()
         results["partitioning_look_ahead"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["partitioning_look_ahead"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)

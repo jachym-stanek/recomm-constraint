@@ -1,3 +1,9 @@
+############################################
+# DISCLAIMER
+# This code in its current  state might not be runnable as it was not updated thoroughly after every refactoring.
+# It is meant to be used as a reference for the experiments conducted in the thesis.
+############################################
+
 import random
 import time
 import matplotlib.pyplot as plt
@@ -7,8 +13,11 @@ import pandas as pd
 import json
 import pickle
 
+from pandas.io.xml import preprocess_data
+
 from src.algorithms.ILP import IlpSolver
 from src.algorithms.CP import CpSolver
+from src.algorithms.Preprocessor import ItemPreprocessor
 from src.segmentation import Segment
 from src.constraints.constraint import *
 from ilp_experiments import run_test as run_ilp_test
@@ -68,8 +77,8 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
             else:
                 item_segment_map[item_id] = [seg_id]
 
-    ilp_solver = IlpSolver(verbose=False)
-    filtered_items = ilp_solver.preprocess_items(items.copy(), segments_dict.copy(), segments_dict.copy(), constraints, item_segment_map, N)
+    preprocessor = ItemPreprocessor(verbose=False)
+    filtered_items = preprocessor.preprocess_items(items.copy(), segments_dict.copy(), segments_dict.copy(), constraints, item_segment_map, N)
     cp_solver_preprocessing = CpSolver(filtered_items, segments_dict, constraints, N)
     if verbose:
         print(f"Filtered Items: {filtered_items}")
@@ -148,6 +157,7 @@ def compare_ilp_and_cp():
                 for i in range(10)]
     segments_dict = {seg.id: seg for seg in segments_list}
     solver = IlpSolver(verbose=False)
+    preprocessor = ItemPreprocessor(verbose=False)
     results_increasing_N = dict()
     for N in [5, 10, 15, 20, 30, 40, 50]:
         print(f"Running test for N={N}")
@@ -161,7 +171,7 @@ def compare_ilp_and_cp():
         results_increasing_N[N]['cp'] = run_test_cp_preprocessing(f"Test Case N:{N}, M: 100", items.copy(),
                                                                   segments_list.copy(), constraints, N, 100, 10,
                                                                   verbose=False, preprocessing_only=True)
-        results_increasing_N[N]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, items.copy(), segments_dict.copy(), constraints, N, 100, [10], verbose=False)
+        results_increasing_N[N]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, preprocessor, items.copy(), segments_dict.copy(), constraints, N, 100, [10], verbose=False)
 
 
     # plot results
@@ -227,7 +237,7 @@ def compare_ilp_and_cp():
         results_increasing_M[M]['idfs'] = run_test_idfs(f"Test Case N:20, M: {M}", items.copy(),
                                                         segments_dict.copy(), constraints, N)
         results_increasing_M[M]['cp'] = run_test_cp_preprocessing(f"Test Case N:20, M: {M}", items, list(segments.values()), constraints, 20, M, 10, verbose=False, preprocessing_only=True)
-        results_increasing_M[M]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:20, M: {M}", solver, items, segments, constraints, 20, M, [10], verbose=False)
+        results_increasing_M[M]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:20, M: {M}", solver, preprocessor, items, segments, constraints, 20, M, [10], verbose=False)
 
     # plot results
     plt.figure(figsize=(8, 6))
@@ -273,7 +283,7 @@ def compare_ilp_and_cp():
         results_increasing_S[S]['idfs'] = run_test_idfs(f"Test Case N:{N}, M: {M}, S: {S}", items.copy(),
                                                         segments.copy(), constraints, N)
         results_increasing_S[S]['cp'] = run_test_cp_preprocessing(f"Test Case N:{N}, M: {M}, S: {S}", items.copy(), list(segments.values()), constraints, N, M, S, verbose=False, preprocessing_only=True)
-        results_increasing_S[S]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: {M}, S: {S}", solver, items, segments, constraints, N, M, [10], verbose=False)
+        results_increasing_S[S]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: {M}, S: {S}", solver, preprocessor, items, segments, constraints, N, M, [10], verbose=False)
 
     # plot results
     plt.figure(figsize=(8, 6))
