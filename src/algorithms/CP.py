@@ -1,8 +1,7 @@
-import random
 import time
 from ortools.sat.python import cp_model
 
-from src.constraints.constraint import *
+from src.constraints import *
 from src.segmentation import Segment
 
 

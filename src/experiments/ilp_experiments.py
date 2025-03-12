@@ -10,12 +10,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import pandas as pd
-import json
 import pickle
 
 from src.algorithms.ILP import IlpSolver
 from src.segmentation import Segment
-from src.constraints.constraint import Constraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
+from src.constraints import MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
     ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
     MinSegmentsConstraint, MaxSegmentsConstraint, ItemUniqueness2D
 

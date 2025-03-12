@@ -7,20 +7,11 @@
 import random
 import time
 import matplotlib.pyplot as plt
-import numpy as np
-import seaborn as sns
-import pandas as pd
-import json
-import pickle
 
 from src.algorithms.ILP import IlpSolver
-from src.algorithms.CP import CpSolver
 from src.algorithms.InformedDFS import IdfsSolver
 from src.algorithms.Preprocessor import ItemPreprocessor
-from src.segmentation import Segment
-from src.constraints.constraint import *
-from ilp_experiments import run_test as run_ilp_test
-from ilp_experiments import run_test_preprocessing as run_ilp_test_preprocessing
+from src.constraints import *
 from ilp_experiments import run_test_all_approaches as run_ilp_test_all_approaches
 
 

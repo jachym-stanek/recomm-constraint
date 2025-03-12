@@ -1,7 +1,6 @@
 import json
 
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.sparse import csr_matrix
 
@@ -9,8 +8,7 @@ from src.algorithms.ILP import IlpSolver
 from src.data_split import DataSplitter
 from src.segmentation import SegmentationExtractor
 from src.settings import Settings
-from src.constraints.constraint import GlobalMaxItemsPerSegmentConstraint
-from src.evaluator import Evaluator
+from src.constraints import GlobalMaxItemsPerSegmentConstraint
 from src.models import ALSModel
 
 

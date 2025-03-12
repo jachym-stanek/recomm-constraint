@@ -1,8 +1,7 @@
 from collections import deque
 
 from src.algorithms.algorithm import Algorithm
-from src.segmentation import Segment
-from src.constraints.constraint import *
+from src.constraints import *
 
 
 class IdfsSolver(Algorithm):

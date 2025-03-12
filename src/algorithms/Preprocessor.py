@@ -1,10 +1,8 @@
 import time
 import math
 
-from typing import Dict, List, Set
-
 from src.algorithms.algorithm import Algorithm
-from src.constraints.constraint import *
+from src.constraints import *
 
 
 class ItemPreprocessor(Algorithm):

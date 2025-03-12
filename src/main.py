@@ -1,11 +1,6 @@
 import time, os, re
-import matplotlib.pyplot as plt
 
-
-from scipy.sparse import csr_matrix, load_npz
-import numpy as np
-
-from src.constraints.constraint import GlobalMaxItemsPerSegmentConstraint
+from src.constraints import GlobalMaxItemsPerSegmentConstraint
 from src.data_split import DataSplitter
 from src.evaluator import Evaluator
 from src.models import ALSModel

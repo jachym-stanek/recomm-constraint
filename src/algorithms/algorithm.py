@@ -1,6 +1,6 @@
 from typing import Dict, List
 from src.segmentation import Segment
-from src.constraints.constraint import Constraint
+from src.constraints import Constraint
 
 
 class Algorithm:
