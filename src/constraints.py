@@ -34,7 +34,7 @@ class Constraint2D:
 
 class MinItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
-        super().__init__(f"{name}_{segment_id}", weight)
+        super().__init__(name, weight)
         self.segment_id = segment_id
         self.min_items = min_items
         self.window_size = window_size
@@ -128,7 +128,7 @@ class MinItemsPerSegmentConstraint(Constraint):
 
 class MaxItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, max_items, window_size, name="MaxItemsPerSegment", weight=1.0):
-        super().__init__(f"{name}_{segment_id}", weight)
+        super().__init__(name, weight)
         self.segment_id = segment_id
         self.max_items = max_items
         self.window_size = window_size
@@ -217,7 +217,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
 
 class ItemFromSegmentAtPositionConstraint(Constraint):
     def __init__(self, segment_id, position, name="ItemFromSegmentAtPosition", weight=1.0):
-        super().__init__(f"{name}_{segment_id}", weight)
+        super().__init__(name, weight)
         self.segment_id = segment_id
         self.position = position
 
@@ -326,7 +326,7 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
                 self.constraints.append(constraint)
 
     def __repr__(self):
-        return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items})"
+        return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items}, window_size={self.window_size})"
 
 
 class GlobalMaxItemsPerSegmentConstraint(Constraint):
@@ -371,7 +371,7 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
                 self.constraints.append(constraint)
 
     def __repr__(self):
-        return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items})"
+        return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items}, window_size={self.window_size})"
 
 
 class MinSegmentsConstraint(Constraint):
@@ -529,7 +529,7 @@ class MinSegmentsConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return f"{self.name}(segmentation_property={self.segmentation_property}, min_segments={self.min_segments})"
+        return f"{self.name}(segmentation_property={self.segmentation_property}, min_segments={self.min_segments}, window_size={self.window_size})"
 
 
 class MaxSegmentsConstraint(Constraint):
@@ -686,7 +686,7 @@ class MaxSegmentsConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return f"{self.name}(segmentation_property={self.segmentation_property}, max_segments={self.max_segments})"
+        return f"{self.name}(segmentation_property={self.segmentation_property}, max_segments={self.max_segments}, window_size={self.window_size})"
 
 class ItemUniqueness2D(Constraint2D):
     def __init__(self, width, height, name="ItemUniqueness2D", weight=1.0):

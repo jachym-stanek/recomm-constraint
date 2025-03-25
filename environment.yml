@@ -1,0 +1,13 @@
+name: recomm-constraint
+channels:
+  - defaults
+dependencies:
+  - python=3.11.10
+  - gurobipy=11.0.3
+  - implicit=0.7.2
+  - matplotlib=3.9.2
+  - numpy=1.26.4
+  - pandas=2.1.4
+  - scipy
+  - seaborn
+  - tqdm
