@@ -10,13 +10,13 @@ class ConstraintGenerator:
     def __init__(self):
         pass
 
-    def generate_random_constraints(self, n, num_recommendations, items=None, segment_ids=None, segmentation_properties=None,
-                                    weight_type="mixed", exclude_specific=None):
+    def generate_random_constraints(self, num_constraints, num_recommendations, items=None, segment_ids=None,
+                                    segmentation_properties=None, weight_type="mixed", exclude_specific=None):
         """
         Generate n random 1D constraints with random parameters.
 
         Args:
-            n (int): Number of constraints to generate.
+            num_constraints (int): Number of constraints to generate.
             weight_type (str): "mixed" (default), "soft" or "hard".
             exclude_specific (list): exclude specific constraint types.
 
@@ -53,13 +53,13 @@ class ConstraintGenerator:
 
         # Define available 1D constraint classes.
         if exclude_specific is not None:
-            if type(exclude_specific) is not list or type(exclude_specific) is not tuple:
-                raise TypeError('exclude_specific must be either a list or a tuple.')
+            if not isinstance(exclude_specific, (list, tuple)):
+                raise TypeError('exclude_specific must be either a list or a tuple but is of type: ', type(exclude_specific))
 
             available_types = [c for c in available_types if c not in exclude_specific]
 
 
-        while len(generated_constraints) < n:
+        while len(generated_constraints) < num_constraints:
             constraint_class = random.choice(available_types)
 
             weight_val = 1.0
@@ -169,7 +169,8 @@ if __name__ == "__main__":
     segment_ids = [f'segment-{i}' for i in range(1, 4)]
     segmentation_properties = ['prop1', 'prop2']
     generator = ConstraintGenerator()
-    constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segment_ids, segmentation_properties)
+    constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segment_ids,
+                                                        segmentation_properties)
     print(f"Generated {num_constraints} random constraints:")
     for c in constraints:
         print(c)

@@ -10,12 +10,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from src.algorithms.ILP import IlpSolver
-from src.algorithms.CP import CpSolver
+from src.algorithms.CP import CpSolver, PermutationCpSolver
 from src.algorithms.Preprocessor import ItemPreprocessor
 from src.constraints import *
 from ilp_experiments import run_test_preprocessing as run_ilp_test_preprocessing
 from ilp_experiments import run_test_all_approaches as run_ilp_test_all_approaches
 from dfs_experiments import run_test_idfs
+from src.constraint_generator import ConstraintGenerator
 
 
 def check_solution(test_name, constraints, recommended_items, items, segments_list, segments_dict, verbose=False):
@@ -40,25 +41,30 @@ def check_solution(test_name, constraints, recommended_items, items, segments_li
 
 def print_test_results(test_name, results):
     print(f"\n=== {test_name} ===")
-    print("Preprocessing optimal:")
+    print("--- Preprocessing optimal ---")
     print(f"Time: {results['preprocessing_optimal']['time']:.4f} milliseconds")
     print(f"Score: {results['preprocessing_optimal']['score']:.1f}")
     print(f"Constraints satisfied: {results['preprocessing_optimal']['constraints_satisfied']}")
-    print("Preprocessing first feasible:")
+    print("--- Preprocessing first feasible ---")
     print(f"Time: {results['preprocessing_first_feasible']['time']:.4f} milliseconds")
     print(f"Score: {results['preprocessing_first_feasible']['score']:.1f}")
     print(f"Constraints satisfied: {results['preprocessing_first_feasible']['constraints_satisfied']}")
-    print("Optimal:")
+    print("--- Optimal ---")
     print(f"Time: {results['optimal']['time']:.4f} milliseconds")
     print(f"Score: {results['optimal']['score']:.1f}")
     print(f"Constraints satisfied: {results['optimal']['constraints_satisfied']}")
-    print("First feasible:")
+    print("--- First feasible ---")
     print(f"Time: {results['first_feasible']['time']:.4f} milliseconds")
     print(f"Score: {results['first_feasible']['score']:.1f}")
     print(f"Constraints satisfied: {results['first_feasible']['constraints_satisfied']}")
+    print("--- Permutation Optimal ---")
+    print(f"Time: {results['permutation_optimal']['time']:.4f} milliseconds")
+    print(f"Score: {results['permutation_optimal']['score']:.1f}")
+    print(f"Constraints satisfied: {results['permutation_optimal']['constraints_satisfied']}")
 
 def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, verbose=False, preprocessing_only=False):
-    results = {"preprocessing_optimal": dict(), "preprocessing_first_feasible": dict(), "optimal": dict(), "first_feasible": dict()}
+    results = {"preprocessing_optimal": dict(), "preprocessing_first_feasible": dict(), "optimal": dict(), "first_feasible": dict(),
+               "permutation_optimal": dict()}
 
     segments_dict = {seg.id: seg for seg in segments}
     item_segment_map = dict()
@@ -112,10 +118,23 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
     results["first_feasible"]["score"] = score
     results["first_feasible"]["constraints_satisfied"] = constraints_satisfied
 
+    # run permutation cp solver
+    cp_permutation_solver = PermutationCpSolver(items, segments_dict, constraints, N)
+    start_time = time.time()
+    recommended_items_optimal = cp_permutation_solver.solve_optimal()
+    elapsed_time_optimal = (time.time() - start_time) * 1000
+    score, constraints_satisfied = check_solution("Optimal", constraints, recommended_items_optimal[0], items, segments, segments_dict, verbose)
+    results["permutation_optimal"]["time"] = elapsed_time_optimal
+    results["permutation_optimal"]["score"] = score
+    results["permutation_optimal"]["constraints_satisfied"] = constraints_satisfied
+
     return results
 
 
 def basic_test_cp():
+    ilp_solver = IlpSolver(verbose=False)
+    preprocessor = ItemPreprocessor(verbose=False)
+
     # Test 1 N=10, M=100, S=10
     segmentation_property = 'test-prop'
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
@@ -126,7 +145,7 @@ def basic_test_cp():
     ]
     results_cp = run_test_cp_preprocessing("Test Case 1", items, segments, constraints, 10, 100, 10, verbose=False)
     print_test_results("Test Case 1", results_cp)
-    run_ilp_test_preprocessing("Test Case 1", items, segments, constraints, 10, False, verbose=False)
+    run_ilp_test_preprocessing("Test Case 1", ilp_solver, preprocessor, items, segments, constraints, 10, False, verbose=False)
 
     # Test 2 N=20, M=200, S=20, 3 constraints
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
@@ -138,7 +157,20 @@ def basic_test_cp():
     ]
     results_cp = run_test_cp_preprocessing("Test Case 2", items, segments, constraints, 20, 200, 20, verbose=False)
     print_test_results("Test Case 2", results_cp)
-    run_ilp_test_preprocessing("Test Case 2", items, segments, constraints, 20, False, verbose=False)
+    run_ilp_test_preprocessing("Test Case 2", ilp_solver, preprocessor, items, segments, constraints, 20, False, verbose=False)
+
+    # Test 2 N=20, M=200, S=20, 4 random constraints
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
+    segments = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i * 10:(i + 1) * 10]) for i in range(20)]
+    generator = ConstraintGenerator()
+    constraints = generator.generate_random_constraints(4, 200, list(items.keys()),
+                                                        [seg.id for seg in segments], [segmentation_property],
+                                                        exclude_specific=[ItemAtPositionConstraint,
+                                                                          ItemFromSegmentAtPositionConstraint])
+    results_cp = run_test_cp_preprocessing("Test Case 3", items, segments, constraints, 20, 200, 20, verbose=False)
+    print_test_results("Test Case 3", results_cp)
+    run_ilp_test_preprocessing("Test Case 3", ilp_solver, preprocessor, items, segments, constraints, 20, False, verbose=False)
+
 
 
 def compare_ilp_and_cp():
@@ -304,22 +336,24 @@ def compare_ilp_and_cp():
     plt.show()
 
 
-def filtered_items_per_nubmer_of_segments():
-    segmentation_property = 'test-prop'
-    solver = IlpSolver(verbose=False)
-    results = []
+def filtered_items_per_number_of_segments():
     M = 200
     N = 20
+    segmentation_property = 'test-prop'
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
+    preprocessor = ItemPreprocessor(verbose=False)
+    results = []
+
     for S in [5, 10, 15, 20, 25, 30, 40, 50]:
-        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
+        print(f"Running test for S={S}")
         segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property,
                                            *list(items.keys())[i * (M // S):(i + 1) * (M // S)]) for i in range(S)}
+        item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
         constraints = [
             GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
             MinSegmentsConstraint(segmentation_property, 2, 5)
         ]
-        item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-        filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+        filtered_items = preprocessor.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
         results.append((S, len(filtered_items)))
 
     print(results)
@@ -330,15 +364,16 @@ def filtered_items_per_nubmer_of_segments():
     sns.set_context("notebook", font_scale=1.5)
 
     sns.barplot(x=[result[0] for result in results], y=[result[1] for result in results])
-    plt.title("Number of Filtered Items for Increasing Number of Segments in Candidate Items \n"
-              "Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
+    # plt.title("Number of Filtered Items for Increasing Number of Segments in Candidate Items \n"
+    #           "Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
     plt.xlabel("Number of Segments in Candidate Items (|S|)")
-    plt.ylabel("Number of Filtered Items")
+    plt.ylabel("Number of Remaining Items")
     plt.tight_layout()
     plt.show()
 
 
+
 if __name__ == '__main__':
-    compare_ilp_and_cp()
-    # filtered_items_per_nubmer_of_segments()
-    # basic_test_cp()
+    # compare_ilp_and_cp()
+    # filtered_items_per_number_of_segments()
+    basic_test_cp()

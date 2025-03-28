@@ -450,7 +450,7 @@ def items_preprocessing_basic_test():
     run_test("Test Case Preprocessed", solver, filtered_items, filtered_segments, constraints, N, using_soft_constraints=True)
     run_test("Test Case Normal", solver, items, segments, constraints, N, using_soft_constraints=True)
 
-def run_test_preprocessing(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, verbose=False,
+def run_test_preprocessing(test_name, solver, preprocessor, items, segments, constraints, N, using_soft_constraints=False, verbose=False,
                            preprocessing_only=False, return_first_feasible=False):
     segments_dict = {seg.id: seg for seg in segments}
     # item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
@@ -464,7 +464,7 @@ def run_test_preprocessing(test_name, solver, items, segments, constraints, N, u
 
     print(f"\n=== {test_name} ===")
     start_time = time.time()
-    filtered_items = solver.preprocess_items(items, segments_dict, segments_dict, constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments_dict, segments_dict, constraints, item_segment_map, N)
     if verbose:
         print(f"Filtered Items: {filtered_items}")
     recommended_items = solver.solve(filtered_items, segments_dict, constraints, N, return_first_feasible=return_first_feasible)

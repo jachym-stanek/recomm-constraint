@@ -1,4 +1,4 @@
-# recomm-constraint
+# Constraint Satisfaction in Top-N Recommendation System
 
 
 ## Set up python environment

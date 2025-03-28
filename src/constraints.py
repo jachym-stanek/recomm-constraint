@@ -14,7 +14,7 @@ class Constraint:
         raise NotImplementedError("Must implement add_to_model method.")
 
     def add_to_cp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        raise NotImplementedError("Must implement add_to_model_cp method.")
+        raise NotImplementedError(f"Must implement add_to_model_cp method for type {type(self)}.")
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         raise NotImplementedError("Must implement check_constraint method.")
@@ -97,6 +97,16 @@ class MinItemsPerSegmentConstraint(Constraint):
             # Sum over all candidate items in the segment for positions in the window.
             model.Add(sum(x[item, p] for item in items if item in seg for p in window) >= self.min_items)
 
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        # Get the indicator list for this segment.
+        indicator_list = solver_data["segment_indicator"][self.segment_id]
+        for i in range(N - self.window_size + 1):
+            b_vars = []
+            for p in range(i, i + self.window_size):
+                b = model.NewIntVar(0, 1, f"min_{self.segment_id}_{i}_{p}")
+                model.AddElement(assign[p], indicator_list, b)
+                b_vars.append(b)
+            model.Add(sum(b_vars) >= self.min_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         if type(solution) is dict:
@@ -187,6 +197,16 @@ class MaxItemsPerSegmentConstraint(Constraint):
             window = positions[i : i + self.window_size]
             model.Add(sum(x[item, p] for item in items if item in seg for p in window) <= self.max_items)
 
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        indicator_list = solver_data["segment_indicator"][self.segment_id]
+        for i in range(N - self.window_size + 1):
+            b_vars = []
+            for p in range(i, i + self.window_size):
+                b = model.NewIntVar(0, 1, f"max_{self.segment_id}_{i}_{p}")
+                model.AddElement(assign[p], indicator_list, b)
+                b_vars.append(b)
+            model.Add(sum(b_vars) <= self.max_items)
+
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         if type(solution) is dict:
             solution = list(solution.values())
@@ -239,6 +259,12 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
                 name=f"{self.name}_{self.position}"
             )
 
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        indicator_list = solver_data["segment_indicator"][self.segment_id]
+        b = model.NewIntVar(0, 1, f"fromseg_{self.segment_id}_{self.position}")
+        model.AddElement(assign[self.position], indicator_list, b)
+        model.Add(b == 1)
+
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         segment_items = segments[self.segment_id]
         if type(solution) is dict:
@@ -273,6 +299,10 @@ class ItemAtPositionConstraint(Constraint):
                 x[self.item_id, row, self.position] >= 1,
                 name=f"{self.name}_{self.position}"
             )
+
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        candidate_val = solver_data["candidate_to_int"][self.item_id]
+        model.Add(assign[self.position] == candidate_val)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         if type(solution) is dict:
@@ -315,6 +345,17 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
                 constraint = MinItemsPerSegmentConstraint(seg.id, self.min_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_cp_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
+
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        seg_dict = solver_data["global_segments"].get(self.segmentation_property, {})
+        for seg_id, indicator_list in seg_dict.items():
+            for i in range(N - self.window_size + 1):
+                b_vars = []
+                for p in range(i, i + self.window_size):
+                    b = model.NewIntVar(0, 1, f"globalmin_{seg_id}_{i}_{p}")
+                    model.AddElement(assign[p], indicator_list, b)
+                    b_vars.append(b)
+                model.Add(sum(b_vars) >= self.min_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
@@ -360,6 +401,17 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
                 constraint = MaxItemsPerSegmentConstraint(seg.id, self.max_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_cp_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
+
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        seg_dict = solver_data["global_segments"].get(self.segmentation_property, {})
+        for seg_id, indicator_list in seg_dict.items():
+            for i in range(N - self.window_size + 1):
+                b_vars = []
+                for p in range(i, i + self.window_size):
+                    b = model.NewIntVar(0, 1, f"globalmax_{seg_id}_{i}_{p}")
+                    model.AddElement(assign[p], indicator_list, b)
+                    b_vars.append(b)
+                model.Add(sum(b_vars) <= self.max_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
@@ -487,6 +539,23 @@ class MinSegmentsConstraint(Constraint):
                 model.Add(sum(x[item, p] for item in items if item in seg for p in window) == 0).OnlyEnforceIf(y_var.Not())
                 y_vars[seg.id] = y_var
             model.Add(sum(y_vars[seg.id] for seg in seg_list) >= self.min_segments)
+
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        # Use global_segments to get all segments with the given property.
+        seg_dict = solver_data["global_segments"].get(self.segmentation_property, {})
+        for i in range(N - self.window_size + 1):
+            y_vars = []
+            for seg_id, indicator_list in seg_dict.items():
+                b_vars = []
+                for p in range(i, i + self.window_size):
+                    b = model.NewIntVar(0, 1, f"minseg_{seg_id}_{i}_{p}")
+                    model.AddElement(assign[p], indicator_list, b)
+                    b_vars.append(b)
+                y = model.NewBoolVar(f"minseg_y_{seg_id}_{i}")
+                model.Add(sum(b_vars) >= 1).OnlyEnforceIf(y)
+                model.Add(sum(b_vars) == 0).OnlyEnforceIf(y.Not())
+                y_vars.append(y)
+            model.Add(sum(y_vars) >= self.min_segments)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         if type(solution) is dict:
@@ -644,6 +713,22 @@ class MaxSegmentsConstraint(Constraint):
                 model.Add(sum(x[item, p] for item in items if item in seg for p in window) == 0).OnlyEnforceIf(y_var.Not())
                 y_vars[seg.id] = y_var
             model.Add(sum(y_vars[seg.id] for seg in seg_list) <= self.max_segments)
+
+    def add_to_permutation_cp_model(self, model, assign, solver_data, N):
+        seg_dict = solver_data["global_segments"].get(self.segmentation_property, {})
+        for i in range(N - self.window_size + 1):
+            y_vars = []
+            for seg_id, indicator_list in seg_dict.items():
+                b_vars = []
+                for p in range(i, i + self.window_size):
+                    b = model.NewIntVar(0, 1, f"maxseg_{seg_id}_{i}_{p}")
+                    model.AddElement(assign[p], indicator_list, b)
+                    b_vars.append(b)
+                y = model.NewBoolVar(f"maxseg_y_{seg_id}_{i}")
+                model.Add(sum(b_vars) >= 1).OnlyEnforceIf(y)
+                model.Add(sum(b_vars) == 0).OnlyEnforceIf(y.Not())
+                y_vars.append(y)
+            model.Add(sum(y_vars) <= self.max_segments)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         if type(solution) is dict:
