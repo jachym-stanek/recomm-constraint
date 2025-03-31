@@ -6,8 +6,9 @@ from src.algorithms.Preprocessor import ItemPreprocessor
 
 
 class IlpSolver(Algorithm):
-    def __init__(self, name="ILP", description="Integer Linear Programming Solver", verbose=True):
+    def __init__(self, name="ILP", description="Integer Linear Programming Solver", verbose=True, time_limit=None):
         super().__init__(name, description, verbose)
+        self.time_limit = time_limit # in seconds, None for no limit
 
     def solve_by_partitioning(self, item_preprocessor: ItemPreprocessor, items: Dict[str, float], segments: Dict[str, Segment],
                               constraints: List[Constraint], N: int, partition_size: int,
@@ -110,7 +111,12 @@ class IlpSolver(Algorithm):
             print(f"[{self.name}] Solving ILP with {len(items)} candidate items, {len(segments)} segments, {len(constraints)} constraints, count={N}.")
 
         model = Model("RecommenderSystem")
-        model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+        # model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+
+        if self.time_limit is not None:
+            if self.verbose:
+                print(f"[{self.name}] Setting time limit to {self.time_limit} seconds.")
+            model.setParam("TimeLimit", self.time_limit)
 
         if return_first_feasible:
             model.setParam("SolutionLimit", 1)
@@ -161,7 +167,8 @@ class IlpSolver(Algorithm):
         result = None
 
         # Check if the model found an optimal solution
-        if model.Status == GRB.OPTIMAL or (return_first_feasible and model.Status == GRB.SOLUTION_LIMIT):
+        if (model.Status == GRB.OPTIMAL or (return_first_feasible and model.Status == GRB.SOLUTION_LIMIT)
+               or (self.time_limit is not None and model.Status == GRB.TIME_LIMIT)):
             # Extract the solution
             solution = {}
             for i in item_ids:

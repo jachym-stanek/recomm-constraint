@@ -13,6 +13,7 @@ import pandas as pd
 import pickle
 
 from src.algorithms.ILP import IlpSolver
+from src.algorithms.Preprocessor import ItemPreprocessor
 from src.segmentation import Segment
 from src.constraints import MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
     ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
@@ -1031,7 +1032,7 @@ def check_constraints(recommended_items, items, segments, constraints):
     return all_constraints_satisfied
 
 
-def run_test_all_approaches(test_name, solver, preprocessor, items, segments, constraints, N, M, partition_sizes: list, using_soft_constraints=False,
+def run_test_all_approaches(test_name, solver, preprocessor, items, segments, constraints, N, M, partition_sizes: list,
                             verbose=False, run_normal=True):
     results = {"normal": dict(), "preprocessing": dict(), "preprocessing_first_feasible": dict(), "partitioning": dict(), "partitioning_look_ahead": dict()}
     if run_normal:
@@ -1548,6 +1549,32 @@ def ilp_return_first_feasible_test():
     run_test_preprocessing("Test Case 2 First Feasible", solver, items, segments, constraints, N, verbose=True, return_first_feasible=True)
     run_test_preprocessing("Test Case 2 Optimal", solver, items, segments, constraints, N, verbose=True)
 
+def ILP_timeout_test():
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
+    # 2 segmentation properties
+    segments1 = {f'segment-{i}': Segment(f'segment-{i}', 'test-prop1', *list(items.keys())[i*20:(i+1)*20]) for i in range(10)}
+    # segments 2 -> divide into 2 segments - odd and even items
+    segments2 = {'segment-even': Segment('segment-even', 'test-prop2', *list(items.keys())[::2]),
+                 'segment-odd': Segment('segment-odd', 'test-prop2', *list(items.keys())[1::2])}
+    segments = {**segments1, **segments2}
+    N = 20
+    M = 200
+    constraints = [
+        GlobalMaxItemsPerSegmentConstraint('test-prop1', 2, 10, weight=0.9),
+        MinSegmentsConstraint('test-prop2', 2, 4, weight=0.9)
+    ]
+    solver1 = IlpSolver(verbose=True, time_limit=0.3)
+    solver2 = IlpSolver(verbose=True, time_limit=2)
+
+    recomms1 = solver1.solve(items, segments, constraints, N)
+    recomms2 = solver2.solve(items, segments, constraints, N)
+
+    score1 = sum([items[item_id] for item_id in recomms1.values()])
+    score2 = sum([items[item_id] for item_id in recomms2.values()])
+
+    print(f"Score 1: {score1}, Score 2: {score2}")
+
+
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
@@ -1566,7 +1593,8 @@ if __name__ == "__main__":
     # ILP_2D_constraints_test_preprocessing()
     # basic_segment_diversity_test()
     # compare_ILP_approaches_speed()
-    ilp_return_first_feasible_test()
+    # ilp_return_first_feasible_test()
+    ILP_timeout_test()
 # Datasety na vyzkouseni:
 # pridat bm25 normalizaci, vyzkouset na novych datasetech
 # temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi
