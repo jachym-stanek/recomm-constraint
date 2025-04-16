@@ -63,7 +63,7 @@ class MinItemsPerSegmentConstraint(Constraint):
 
         # constraint including the already recommended items
         if already_recommended_items: # TODO: refactor this to merge with the previous loop
-            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_start = self.window_size - N if (N < self.window_size < len(already_recommended_items) + N) else 1
             counter_end = min(self.window_size, len(already_recommended_items) + 1)
             for i in range(counter_start, counter_end):
                 recomm_positions = positions[:self.window_size-i] # positions in the recommendation that are not already recommended
@@ -168,7 +168,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
         # constraint including the already recommended items
         if already_recommended_items:
             counter_start = self.window_size - N if (N < self.window_size < len(already_recommended_items) + N) else 1
-            counter_end = min(self.window_size, len(already_recommended_items))
+            counter_end = min(self.window_size, len(already_recommended_items) + 1) # take either last W-1 or |AR| positions
             for i in range(counter_start, counter_end):
                 recomm_positions = positions[:self.window_size-i]
 
@@ -320,13 +320,15 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
     E.g. Final recommendation should contain at least 2 items from every genre present in the candidate items
     """
 
-    def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="GlobalMinItemsPerSegment", verbose=False):
+    def __init__(self, segmentation_property, segments, min_items, window_size, weight=1.0, name="GlobalMinItemsPerSegment", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.min_items = min_items
         self.window_size = window_size
         self.constraints = [] # List of MinItemsPerSegmentConstraint for each segment with min_items and window_size = N
         self.verbose = verbose
+
+        self.initialize_constraint_from_segments(segments)
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # create MinItemsPerSegmentConstraint for each segment
@@ -376,13 +378,15 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
     E.g. Final recommendation should contain at most 2 items from every genre present in the candidate items
     """
 
-    def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="GlobalMaxItemsPerSegment", verbose=False):
+    def __init__(self, segmentation_property, segments, max_items, window_size, weight=1.0, name="GlobalMaxItemsPerSegment", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.max_items = max_items
         self.window_size = window_size
         self.constraints = [] # List of MaxItemsPerSegmentConstraint for each segment with max_items and window_size = N
         self.verbose = verbose
+
+        self.initialize_constraint_from_segments(segments)
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # create MaxItemsPerSegmentConstraint for each segment
@@ -672,7 +676,7 @@ class MaxSegmentsConstraint(Constraint):
                 const_sum = sum(constant.values())
                 new_y_vars = {}
                 for segment_id in segment_ids:
-                    if constant[segment_id] == 0:
+                    if constant[segment_id] == 0: # only create a new var if the segment is not already present
                         new_y_vars[segment_id] = model.addVar(vtype=GRB.BINARY,
                                                               name=f"y_{self.name}_already_{segment_id}_{i}")
                         model.addConstr(

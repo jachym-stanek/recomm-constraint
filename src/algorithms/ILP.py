@@ -111,7 +111,7 @@ class IlpSolver(Algorithm):
             print(f"[{self.name}] Solving ILP with {len(items)} candidate items, {len(segments)} segments, {len(constraints)} constraints, count={N}.")
 
         model = Model("RecommenderSystem")
-        # model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+        model.setParam('OutputFlag', 0)  # Suppress Gurobi output
 
         if self.time_limit is not None:
             if self.verbose:
@@ -168,7 +168,7 @@ class IlpSolver(Algorithm):
 
         # Check if the model found an optimal solution
         if (model.Status == GRB.OPTIMAL or (return_first_feasible and model.Status == GRB.SOLUTION_LIMIT)
-               or (self.time_limit is not None and model.Status == GRB.TIME_LIMIT)):
+               or (self.time_limit is not None and model.Status == GRB.TIME_LIMIT)) and model.SolCount > 0:
             # Extract the solution
             solution = {}
             for i in item_ids:

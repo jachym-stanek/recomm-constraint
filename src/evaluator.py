@@ -176,7 +176,7 @@ class Evaluator:
                 user_recall_constrained = np.mean(recalls_constrained)
                 total_recall_constrained += user_recall_constrained
 
-            if user_count % self.log_every == 0:
+            if user_count % self.log_every == 0 and user_count > 0:
                 print(
                     f"[Evaluator] Processed {user_count + skipped_users}/{len(test_dataset)} users. Average Recall@{N}: {total_recall / user_count:.4f} "
                     f"Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f} "

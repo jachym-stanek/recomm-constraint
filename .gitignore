@@ -163,9 +163,11 @@ notes.txt
 
 # exclude the results logs
 src/results*.txt
+src/*results.txt
 
 # exclude the results plots
 src/*.png
 *.png
 src/*.json
 src/*.pkl
+

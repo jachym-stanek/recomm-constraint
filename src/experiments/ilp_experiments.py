@@ -15,9 +15,8 @@ import pickle
 from src.algorithms.ILP import IlpSolver
 from src.algorithms.Preprocessor import ItemPreprocessor
 from src.segmentation import Segment
-from src.constraints import MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint, \
-    ItemFromSegmentAtPositionConstraint, ItemAtPositionConstraint, GlobalMinItemsPerSegmentConstraint, GlobalMaxItemsPerSegmentConstraint, \
-    MinSegmentsConstraint, MaxSegmentsConstraint, ItemUniqueness2D
+from src.constraints import *
+from src.util import *
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
@@ -454,14 +453,7 @@ def items_preprocessing_basic_test():
 def run_test_preprocessing(test_name, solver, preprocessor, items, segments, constraints, N, using_soft_constraints=False, verbose=False,
                            preprocessing_only=False, return_first_feasible=False):
     segments_dict = {seg.id: seg for seg in segments}
-    # item_segment_map = {item_id: seg_id for seg_id, segment in segments_dict.items() for item_id in segment}
-    item_segment_map = dict()
-    for seg_id, segment in segments_dict.items():
-        for item_id in segment:
-            if item_id in item_segment_map:
-                item_segment_map[item_id].append(seg_id)
-            else:
-                item_segment_map[item_id] = [seg_id]
+    item_segment_map = create_item_segment_map_from_segments(segments_dict)
 
     print(f"\n=== {test_name} ===")
     start_time = time.time()
@@ -779,28 +771,33 @@ def plot_results_ILP_partitioning(results_file: str):
 
 
 def ILP_solve_for_overlapping_segments():
-    solver = IlpSolver()
+    print("=============== Testing Functionality for Overlapping Segments ===============")
 
-    # items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
-    # segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:50])
-    # segment2 = Segment('segment2', 'test-prop', *list(items.keys())[25:75])
-    # segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
-    # segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
-    # segments = [segment1, segment2, segment3, segment4]
-    # N = 10
-    # constraints = [
-    #     MinSegmentsPerSegmentationConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
-    # ]
-    # run_test_preprocessing("Test Case 1", solver, items, segments, constraints, N, verbose=True)
+    solver = IlpSolver(verbose=False)
+    preprocessor = ItemPreprocessor(verbose=True)
+
+    items = {f'item-{i}': i for i in range(1, 101)}
+    segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:50])
+    segment2 = Segment('segment2', 'test-prop', *list(items.keys())[25:75])
+    segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
+    segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
+    segments = [segment1, segment2, segment3, segment4]
+    segments_dict = {seg.id: seg for seg in segments}
+    N = 10
+    constraints = [
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', segments=segments_dict, min_items=1, weight=1.0, window_size=5)
+    ]
+    run_test_preprocessing("Test Case 1", solver, preprocessor, items, segments, constraints, N, verbose=True)
 
     items = {f'item-{i}': i for i in range(1, 21)}
     segment1 = Segment('segment1', 'test-prop', *list(items.keys())[5:])
     segment2 = Segment('segment2', 'test-prop', 'item-20', 'item-19', 'item-18', 'item-17', 'item-16')
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
+    segments_dict = {seg.id: seg for seg in [segment1, segment2, segment3, segment4]}
     N = 6
-    constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=3, window_size=N)]
-    run_test_preprocessing("Test Case 2", solver, items, [segment1, segment2, segment3, segment4], constraints, N, verbose=True)
+    constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', segments=segments_dict, max_items=3, window_size=N)]
+    run_test_preprocessing("Test Case 2", solver, preprocessor, items, [segment1, segment2, segment3, segment4], constraints, N, verbose=True)
 
 
 def ILP_2D_constraints_test():
@@ -1563,7 +1560,7 @@ def ILP_timeout_test():
         GlobalMaxItemsPerSegmentConstraint('test-prop1', 2, 10, weight=0.9),
         MinSegmentsConstraint('test-prop2', 2, 4, weight=0.9)
     ]
-    solver1 = IlpSolver(verbose=True, time_limit=0.3)
+    solver1 = IlpSolver(verbose=True, time_limit=0.1)
     solver2 = IlpSolver(verbose=True, time_limit=2)
 
     recomms1 = solver1.solve(items, segments, constraints, N)
@@ -1586,7 +1583,7 @@ if __name__ == "__main__":
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
     # ILP_2D_constraints_test()
-    # ILP_solve_for_overlapping_segments()
+    ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
@@ -1594,9 +1591,4 @@ if __name__ == "__main__":
     # basic_segment_diversity_test()
     # compare_ILP_approaches_speed()
     # ilp_return_first_feasible_test()
-    ILP_timeout_test()
-# Datasety na vyzkouseni:
-# pridat bm25 normalizaci, vyzkouset na novych datasetech
-# temple-webster, buublestore-ecommerce, pathe-thuis, bofrost, goldbelly, recsys nejakou databazi
-# dobre vyplnene kategorie
-# zkusit preprocessing dat pro ILP
+    # ILP_timeout_test()

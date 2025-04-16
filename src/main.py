@@ -118,6 +118,8 @@ def run_experiment_ILP(settings, train_dataset, test_dataset, segmentation_extra
 def measure_changes_with_diversity_constraints():
     start_time = time.time()
     settings = Settings()
+    settings.split['train_ratio'] = 0.9925 # 1039 user for movielens
+    settings.split['random_state'] = 100
     data_splitter = DataSplitter(settings)
     data_splitter.load_data('movielens')
     data_splitter.split_data()
@@ -125,6 +127,7 @@ def measure_changes_with_diversity_constraints():
     test_dataset = data_splitter.get_test_data()
     segmentation_extractor = SegmentationExtractor(settings)
     segmentation_extractor.extract_segments('genres')  # segmens for movielens
+    segments = segmentation_extractor.get_segments()
 
     print(f"Train rating matrix shape: {train_dataset.matrix.shape}, Number of users: {len(train_dataset)}")
     print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset)}")
@@ -135,10 +138,10 @@ def measure_changes_with_diversity_constraints():
     num_iterations = 3
     use_gpu = False
     N = 10
-    M = 200
+    M = 300
 
     results = []
-    max_items = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+    max_items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     model = ALSModel(num_factors=num_factors, regularization=regularization, num_iterations=num_iterations,
                      use_gpu=use_gpu, nearest_neighbors=num_nearest_neighbors)
@@ -150,7 +153,7 @@ def measure_changes_with_diversity_constraints():
     evaluator = Evaluator(settings)
 
     for mi in max_items:
-        constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='genres', max_items=mi, weight=1.0, window_size=N)]
+        constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='genres', segments=segments, max_items=mi, weight=0.9, window_size=N)]
         metrics = evaluator.evaluate_constrained_model(train_dataset=train_dataset, test_dataset=test_dataset,
                                                        segmentation_extractor=segmentation_extractor,
                                                        constraints=constraints,
@@ -164,5 +167,5 @@ def measure_changes_with_diversity_constraints():
 
 if __name__ == "__main__":
     print(f"[ExperimentRunner] Using file '{RESULTS_FILE_ALS}' to save results.")
-    main()
-    # measure_changes_with_diversity_constraints()
+    # main()
+    measure_changes_with_diversity_constraints()

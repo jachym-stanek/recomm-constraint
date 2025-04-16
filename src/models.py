@@ -6,6 +6,7 @@ from sklearn.decomposition import NMF
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
 from implicit.als import AlternatingLeastSquares
+from implicit.nearest_neighbours import bm25_weight
 
 from src.dataset import Dataset
 from src.algorithms.ItemKnn import ItemKnn

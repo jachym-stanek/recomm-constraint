@@ -91,10 +91,13 @@ class SegmentationExtractor:
                                                        segmentation_property=segmentation_property)
                 segments[property_value].add(item_idx)
 
-        # Return a list of Segmentation objects
         self.segments = segments
 
     def get_segments(self):
+        """
+        Get the segments extracted from the dataset.
+        :return: dict<seg_id, Segment>
+        """
         return self.segments
 
     def get_segments_for_recomms(self, recomms):
