@@ -320,15 +320,14 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
     E.g. Final recommendation should contain at least 2 items from every genre present in the candidate items
     """
 
-    def __init__(self, segmentation_property, segments, min_items, window_size, weight=1.0, name="GlobalMinItemsPerSegment", verbose=False):
+    def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="GlobalMinItemsPerSegment", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.min_items = min_items
         self.window_size = window_size
         self.constraints = [] # List of MinItemsPerSegmentConstraint for each segment with min_items and window_size = N
         self.verbose = verbose
-
-        self.initialize_constraint_from_segments(segments)
+        self.is_initialized = False
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # create MinItemsPerSegmentConstraint for each segment
@@ -368,6 +367,8 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
                 constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
 
+        self.is_initialized = True
+
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items}, window_size={self.window_size})"
 
@@ -378,15 +379,14 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
     E.g. Final recommendation should contain at most 2 items from every genre present in the candidate items
     """
 
-    def __init__(self, segmentation_property, segments, max_items, window_size, weight=1.0, name="GlobalMaxItemsPerSegment", verbose=False):
+    def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="GlobalMaxItemsPerSegment", verbose=False):
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.max_items = max_items
         self.window_size = window_size
         self.constraints = [] # List of MaxItemsPerSegmentConstraint for each segment with max_items and window_size = N
         self.verbose = verbose
-
-        self.initialize_constraint_from_segments(segments)
+        self.is_initialized = False
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # create MaxItemsPerSegmentConstraint for each segment
@@ -425,6 +425,8 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
             if segments[segment_id].property == self.segmentation_property:
                 constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
+
+        self.is_initialized = True
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items}, window_size={self.window_size})"

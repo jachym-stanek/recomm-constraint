@@ -457,7 +457,7 @@ def run_test_preprocessing(test_name, solver, preprocessor, items, segments, con
 
     print(f"\n=== {test_name} ===")
     start_time = time.time()
-    filtered_items = preprocessor.preprocess_items(items, segments_dict, segments_dict, constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments_dict, constraints, N)
     if verbose:
         print(f"Filtered Items: {filtered_items}")
     recommended_items = solver.solve(filtered_items, segments_dict, constraints, N, return_first_feasible=return_first_feasible)
@@ -782,10 +782,9 @@ def ILP_solve_for_overlapping_segments():
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
     segments = [segment1, segment2, segment3, segment4]
-    segments_dict = {seg.id: seg for seg in segments}
     N = 10
     constraints = [
-        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', segments=segments_dict, min_items=1, weight=1.0, window_size=5)
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
     ]
     run_test_preprocessing("Test Case 1", solver, preprocessor, items, segments, constraints, N, verbose=True)
 
@@ -794,9 +793,8 @@ def ILP_solve_for_overlapping_segments():
     segment2 = Segment('segment2', 'test-prop', 'item-20', 'item-19', 'item-18', 'item-17', 'item-16')
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
-    segments_dict = {seg.id: seg for seg in [segment1, segment2, segment3, segment4]}
     N = 6
-    constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', segments=segments_dict, max_items=3, window_size=N)]
+    constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=3, window_size=N)]
     run_test_preprocessing("Test Case 2", solver, preprocessor, items, [segment1, segment2, segment3, segment4], constraints, N, verbose=True)
 
 
@@ -1571,6 +1569,27 @@ def ILP_timeout_test():
 
     print(f"Score 1: {score1}, Score 2: {score2}")
 
+def ILP_num_threads_test():
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
+    segments = {f'segment-{i}': Segment(f'segment-{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(10)}
+    N = 20
+    constraints = [
+        GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10),
+        MinSegmentsConstraint('test-prop', 2, 4)
+    ]
+    solver = IlpSolver(verbose=True)
+    results = dict()
+    for num_threads in [1, 2, 4, 8]:
+        print(f"Running test with {num_threads} threads")
+        start = time.time()
+        recomms = solver.solve(items, segments, constraints, N, num_threads=num_threads)
+        time_elapsed = (time.time() - start) * 1000
+        results[num_threads] = time_elapsed
+        score = sum([items[item_id] for item_id in recomms.values()])
+        print(f"Score: {score}")
+        print(f"Time elapsed: {time_elapsed:.4f} ms")
+
+
 
 if __name__ == "__main__":
     # main()
@@ -1592,3 +1611,4 @@ if __name__ == "__main__":
     # compare_ILP_approaches_speed()
     # ilp_return_first_feasible_test()
     # ILP_timeout_test()
+    # ILP_num_threads_test()

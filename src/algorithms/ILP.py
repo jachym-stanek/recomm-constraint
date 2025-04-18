@@ -104,7 +104,7 @@ class IlpSolver(Algorithm):
         return final_result
 
     def solve(self, items: Dict[str, float], segments: Dict[str, Segment], constraints: List[Constraint], N: int,
-              already_recommended_items: List[str] = None, return_first_feasible: bool = False):
+              already_recommended_items: List[str] = None, return_first_feasible: bool = False, num_threads: int = 0):
         start = time.time()
 
         if self.verbose:
@@ -117,6 +117,12 @@ class IlpSolver(Algorithm):
             if self.verbose:
                 print(f"[{self.name}] Setting time limit to {self.time_limit} seconds.")
             model.setParam("TimeLimit", self.time_limit)
+
+        # set the number of threads to use
+        if num_threads > 0:
+            model.setParam("Threads", num_threads)
+            if self.verbose:
+                print(f"[{self.name}] Setting number of threads to {num_threads}.")
 
         if return_first_feasible:
             model.setParam("SolutionLimit", 1)
