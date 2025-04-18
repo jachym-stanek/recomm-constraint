@@ -1,6 +1,6 @@
 from typing import Dict, List, Set
 
-from gurobipy import Model, GRB, quicksum
+from gurobipy import GRB, quicksum
 
 from src.segmentation import Segment
 

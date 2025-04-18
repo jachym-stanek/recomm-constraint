@@ -3,7 +3,6 @@
 import csv
 import json
 
-from clickhouse_driver.settings.available import settings
 from tqdm import tqdm
 
 from src.settings import Settings

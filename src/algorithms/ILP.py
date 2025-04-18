@@ -1,5 +1,7 @@
 import time
 
+from gurobipy import Model
+
 from src.algorithms.algorithm import Algorithm
 from src.constraints import *
 from src.algorithms.Preprocessor import ItemPreprocessor
