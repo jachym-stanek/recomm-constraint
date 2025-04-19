@@ -14,3 +14,4 @@ dependencies:
       - gurobipy==11.0.3
       - implicit==0.7.2
       - ortools==9.11.4210
+      - pyyaml==6.0.1

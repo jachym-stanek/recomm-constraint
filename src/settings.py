@@ -32,8 +32,14 @@ class Settings:
                     'id_mappings_file': '../data/movielens/movielens_id_mappings.json',
                     'info_file': '../data/movielens/dataset_info.json',
                 },
-                'ID_1': { # industrial dataset 1
+                'industrial_dataset1': {
                     'transformed_data_dir': '../data/industrial_dataset1',
+                    'users_file': '../data/industrial_dataset1/users.csv',
+                    'items_file': '../data/industrial_dataset1/items.csv',
+                    'bookmarks_file': '../data/industrial_dataset1/bookmarks.csv',
+                    'detail_views_file': '../data/industrial_dataset1/detail_views.csv',
+                    'purchases_file': '../data/industrial_dataset1/purchases.csv',
+                    'interactions_file': '../data/industrial_dataset1/interactions.csv',
                     'rating_matrix_file': '../data/industrial_dataset1/rating_matrix.npz',
                     'info_file': '../data/industrial_dataset1/dataset_info.json',
                 }
@@ -41,13 +47,13 @@ class Settings:
             },
             'aggregation_settings': {
                 'movielens': 'explicit_only',  # Options: explicit_only, implicit_only, explicit_and_implicit
-                'bookcrossing': 'explicit_and_implicit',
+                'industrial_dataset1': 'implicit_only',
             },
             'interaction_weights': {
                 'movielens': {
                     'rating': 1.0,
                 },
-                'ID_1': {
+                'industrial_dataset1': {
                     'bookmark': 0.5,
                     'rating': 0.25,
                     'purchase': 0.75,
@@ -65,9 +71,6 @@ class Settings:
             'candidates': {
                 'top_n': 1000,
             },
-            'constraints': {
-                'segment_property': 'genre',
-            },
             'recommendations': {
                 'top_n': 10,
                 'num_hidden': 20,
@@ -82,7 +85,7 @@ class Settings:
                     'K1': 100,
                     'B': 0.8,
                 },
-                'bookcrossing': {
+                'industrial_dataset1': {
                     'enabled': True,
                     'K1': 100,
                     'B': 0.8,
@@ -90,7 +93,7 @@ class Settings:
             },
             'nearest_neighbors': {
                 'movielens': 5,
-                'bookcrossing': 5,
+                'industrial_dataset1': 5,
             },
         }
 

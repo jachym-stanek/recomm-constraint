@@ -98,13 +98,12 @@ class DataAggregator:
         col_indices = aggregated['item_idx'].values
         data = aggregated['weighted_value'].values
 
-        # create csr matrix and apply bm25 weighting
+        # create csr matrix
         self.rating_matrix = csr_matrix((data, (row_indices, col_indices)), shape=(num_users, num_items))
-        if self.settings.bm25['enabled']:
-            print("[DataAggregator] Applying BM25 weighting...")
-            self.rating_matrix = bm25_weight(self.rating_matrix, K1=self.settings.bm25['K1'], B=self.settings.bm25['B']).tocsr()
 
         # Log rating matrix info
+        all_values = np.unique(self.rating_matrix.data)
+        print(f"[DataAggregator] Distinct values in rating matrix: {all_values}")
         num_nonzero = self.rating_matrix.nnz
         print(f"[DataAggregator] Rating matrix size: {num_users} users x {num_items} items")
         print(f"[DataAggregator] Number of non-zero entries: {num_nonzero}")
@@ -141,5 +140,6 @@ class DataAggregator:
 if __name__ == "__main__":
     settings = Settings()
     data_aggregator = DataAggregator(settings)
-    data_aggregator.aggregate('movielens')
-    data_aggregator.aggregate('bookcrossing')
+    # data_aggregator.aggregate('movielens')
+    # data_aggregator.aggregate('bookcrossing')
+    data_aggregator.aggregate('industrial_dataset1')
