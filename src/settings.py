@@ -32,13 +32,10 @@ class Settings:
                     'id_mappings_file': '../data/movielens/movielens_id_mappings.json',
                     'info_file': '../data/movielens/dataset_info.json',
                 },
-                'bookcrossing': {
-                    'users_file': '../data/bookcrossing_raw/BX-Users.csv',
-                    'books_file': '../data/bookcrossing_raw/BX-Books.csv',
-                    'ratings_file': '../data/bookcrossing_raw/BX-Book-Ratings.csv',
-                    'transformed_data_dir': '../data/bookcrossing',
-                    'rating_matrix_file': '../data/bookcrossing/rating_matrix.npz',
-                    'info_file': '../data/bookcrossing/dataset_info.json',
+                'ID_1': { # industrial dataset 1
+                    'transformed_data_dir': '../data/industrial_dataset1',
+                    'rating_matrix_file': '../data/industrial_dataset1/rating_matrix.npz',
+                    'info_file': '../data/industrial_dataset1/dataset_info.json',
                 }
 
             },
@@ -50,8 +47,10 @@ class Settings:
                 'movielens': {
                     'rating': 1.0,
                 },
-                'bookcrossing': {
-                    'rating': 1.0,
+                'ID_1': {
+                    'bookmark': 0.5,
+                    'rating': 0.25,
+                    'purchase': 0.75,
                 }
             },
             'segmentation': {
