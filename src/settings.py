@@ -39,7 +39,6 @@ class Settings:
                     'bookmarks_file': '../data/industrial_dataset1/bookmarks.csv',
                     'detail_views_file': '../data/industrial_dataset1/detail_views.csv',
                     'purchases_file': '../data/industrial_dataset1/purchases.csv',
-                    'interactions_file': '../data/industrial_dataset1/interactions.csv',
                     'rating_matrix_file': '../data/industrial_dataset1/rating_matrix.npz',
                     'info_file': '../data/industrial_dataset1/dataset_info.json',
                 }
@@ -65,8 +64,14 @@ class Settings:
                 }
             },
             'split': {
-                'train_ratio': 0.999,
-                'random_state': 10,
+                'movielens': {
+                    'train_ratio': 0.999,
+                    'random_state': 10,
+                },
+                'industrial_dataset1': {
+                    'train_ratio': 0.9995,
+                    'random_state': 10,
+                }
             },
             'candidates': {
                 'top_n': 1000,
@@ -130,7 +135,7 @@ class Settings:
 
     @property
     def split(self):
-        return self._config['split']
+        return self._config['split'][self.dataset_in_use]
 
     @property
     def model(self):

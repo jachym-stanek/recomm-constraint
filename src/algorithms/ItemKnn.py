@@ -1,5 +1,7 @@
 import time
 import numpy as np
+from sklearn.neighbors import KNeighborsTransformer
+from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.algorithms.algorithm import Algorithm
@@ -52,24 +54,6 @@ class ItemKnn(Algorithm):
         return top_K_indices, scores
 
     def nearest_neighbors_precomputed(self, items: list, similarities, N: int):
-        # num_items = len(similarities)
-        # accumulated_similarities = np.zeros(num_items)
-        #
-        # for item in items:
-        #     # Accumulate similarities
-        #     accumulated_similarities += similarities[item]
-        #
-        # # Exclude items already interacted with by setting their similarities to negative infinity
-        # accumulated_similarities[items] = -np.inf
-        #
-        # # Get the indices of the top K items with highest accumulated similarities
-        # top_K_indices = np.argpartition(accumulated_similarities, -N)[-N:]
-        # # Sort the top K indices in descending order of similarity
-        # top_K_indices = top_K_indices[np.argsort(accumulated_similarities[top_K_indices])[::-1]]
-        # scores = accumulated_similarities[top_K_indices]
-        #
-        # return top_K_indices, scores
-
         recommended_items = {}
         for item in items:
             similar_items = similarities[item]  # Get similar items to user's interacted items
@@ -83,28 +67,9 @@ class ItemKnn(Algorithm):
         items, scores = zip(*recommendations)
         return items[:N], scores[:N]
 
-    def compute_similarities(self, item_embeddings):
-        print("[ItemKnn] Computing item similarities...")
+    def compute_neighborhoods(self, item_embeddings):
+        print("[ItemKnn] Computing item embedding neighborhoods...")
         start = time.time()
-
-        # num_items, embedding_dim = embeddings.shape
-        # similarities = np.zeros((num_items, num_items))
-        #
-        # for i in range(num_items):
-        #     emb_i = embeddings[i]
-        #     dot_products = embeddings @ emb_i
-        #
-        #     # Compute norms
-        #     emb_i_norm = np.linalg.norm(emb_i)
-        #     embeddings_norms = np.linalg.norm(embeddings, axis=1)
-        #
-        #     # Compute cosine similarities
-        #     denom = embeddings_norms * emb_i_norm
-        #     epsilon = 1e-10
-        #     denom = np.where(denom == 0, epsilon, denom)
-        #     cosine_similarities = dot_products / denom
-        #
-        #     similarities[i] = cosine_similarities
 
         similarities = cosine_similarity(item_embeddings)
 
@@ -123,5 +88,5 @@ class ItemKnn(Algorithm):
             for neighbor, score in zip(neighbors, neighbors_scores):
                 top_k_neighbors[item_id][neighbor] = score
 
-        print(f"[ItemKnn] Computed item similarities in {time.time() - start:.2f} seconds.")
+        print(f"[ItemKnn] Computed item neighborhoods in {time.time() - start:.2f} seconds.")
         return top_k_neighbors

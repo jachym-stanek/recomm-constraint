@@ -2,11 +2,9 @@
 
 import numpy as np
 from scipy.stats import alpha
-from sklearn.decomposition import NMF
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
 from implicit.als import AlternatingLeastSquares
-from implicit.nearest_neighbours import bm25_weight
 
 from src.dataset import Dataset
 from src.algorithms.ItemKnn import ItemKnn
@@ -89,7 +87,7 @@ class ALSModel(BaseModel):
 
     @property
     def item_factors(self):
-        return self.model.item_factors
+        return np.asarray(self.model.item_factors, dtype=np.float32)
 
 
 class BestsellerModel(BaseModel):

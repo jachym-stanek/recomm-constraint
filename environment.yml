@@ -10,6 +10,7 @@ dependencies:
   - scipy
   - seaborn
   - tqdm
+  - scikit-learn
   - pip:
       - gurobipy==11.0.3
       - implicit==0.7.2

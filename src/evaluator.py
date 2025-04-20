@@ -3,7 +3,6 @@ from typing import List
 
 import numpy as np
 from scipy.sparse import csr_matrix
-from sklearn.utils import deprecated
 
 from src.dataset import Dataset
 from src.settings import Settings
@@ -24,7 +23,7 @@ class Evaluator:
         total_items_recommended = set()
         skipped_users = 0
 
-        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors)
+        precomputed_neighborhoods = model.item_knn.compute_neighborhoods(model.item_factors)
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
@@ -53,7 +52,7 @@ class Evaluator:
                 # Generate recommendations
                 # print(f"obsrvation vector: {user_observation}")
                 # print(f"[Evaluator] User {user}, Dims of user obs: {user_observation.shape}, Observations: {observed_items}")
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, precomputed_similarities=precomputed_similarities, test_user=True)
+                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, precomputed_similarities=precomputed_neighborhoods, test_user=True)
                 # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms}")
                 # print values of recommeded items in the user observation
                 # print(f"recommended items: {user_observation[0, recomms].toarray()}")
@@ -77,8 +76,10 @@ class Evaluator:
 
         return {'average_recall': average_recall, 'catalog_coverage': len(total_items_recommended) / train_dataset.num_items}
 
-    @deprecated
     def evaluate_recall_at_n_batch(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
+        """
+        Deprecated
+        """
         user_groups = self.separate_test_users_by_interactions(test_dataset)
 
         for num_relevant_items, users in user_groups.items():

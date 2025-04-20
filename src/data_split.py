@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 from scipy.sparse import csr_matrix, load_npz
+from implicit.nearest_neighbours import bm25_weight
 import os
 import json
 import random
@@ -35,7 +36,7 @@ class DataSplitter:
 
         print(f"[DataSplitter] Data loading complete.")
 
-    def split_data(self):
+    def split_data(self, bmB=None):
         if self.rating_matrix is None:
             raise ValueError("[DataSplitter] Rating matrix is not loaded. Load data before splitting.")
 
@@ -59,14 +60,21 @@ class DataSplitter:
         print(f"[DataSplitter] Number of training users: {len(self.train_users)}")
         print(f"[DataSplitter] Number of testing users: {len(self.test_users)}")
 
-        self._create_train_test_matrices()
+        data = self.rating_matrix
 
-    def _create_train_test_matrices(self):
+        # Apply BM25 weighting if specified
+        if bmB is not None:
+            print(f"[DataSplitter] Applying BM25 weighting to the rating matrix with B = {bmB}")
+            data = (bm25_weight(data, B=bmB)).tocsr()
+
+        self._create_train_test_matrices(data)
+
+    def _create_train_test_matrices(self, data):
         print("[DataSplitter] Creating training and testing rating matrices...")
 
         # Create training and testing rating matrix
-        self.train_rating_matrix = self.rating_matrix[self.train_users, :]
-        self.test_rating_matrix = self.rating_matrix[self.test_users, :]
+        self.train_rating_matrix = data[self.train_users, :]
+        self.test_rating_matrix = data[self.test_users, :]
 
         print(f"[DataSplitter] Training rating matrix shape: {self.train_rating_matrix.shape}")
         print(f"[DataSplitter] Testing rating matrix shape: {self.test_rating_matrix.shape}")
