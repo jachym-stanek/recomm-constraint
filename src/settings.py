@@ -20,6 +20,7 @@ class Settings:
         # Default settings
         self._config = {
             'datasets': {
+                # download from https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset and extract to ../data/movielens_raw
                 'movielens': {
                     'movies_file': '../data/movielens_raw/movie.csv',
                     'ratings_file': '../data/movielens_raw/rating.csv',
@@ -28,10 +29,13 @@ class Settings:
                     'genome_tags_file': '../data/movielens_raw/genome_tags.csv',
                     'include_tags': False,
                     'transformed_data_dir': '../data/movielens',
+                    'users_file': '../data/movielens/users.csv',
+                    'items_file': '../data/movielens/items.csv',
                     'rating_matrix_file': '../data/movielens/rating_matrix.npz',
                     'id_mappings_file': '../data/movielens/movielens_id_mappings.json',
                     'info_file': '../data/movielens/dataset_info.json',
                 },
+                # not publicly available
                 'industrial_dataset1': {
                     'transformed_data_dir': '../data/industrial_dataset1',
                     'users_file': '../data/industrial_dataset1/users.csv',
@@ -39,7 +43,7 @@ class Settings:
                     'bookmarks_file': '../data/industrial_dataset1/bookmarks.csv',
                     'detail_views_file': '../data/industrial_dataset1/detail_views.csv',
                     'purchases_file': '../data/industrial_dataset1/purchases.csv',
-                    'rating_matrix_file': '../data/industrial_dataset1/rating_matrix.npz',
+                    'rating_matrix_file': '../data/industrial_dataset1/industrial_dataset1_rating_matrix.npz',
                     'info_file': '../data/industrial_dataset1/dataset_info.json',
                 }
 
@@ -54,7 +58,7 @@ class Settings:
                 },
                 'industrial_dataset1': {
                     'bookmark': 0.5,
-                    'rating': 0.25,
+                    'detail_view': 0.25,
                     'purchase': 0.75,
                 }
             },
@@ -69,7 +73,7 @@ class Settings:
                     'random_state': 10,
                 },
                 'industrial_dataset1': {
-                    'train_ratio': 0.9995,
+                    'train_ratio': 0.999,
                     'random_state': 10,
                 }
             },
@@ -77,12 +81,12 @@ class Settings:
                 'top_n': 1000,
             },
             'recommendations': {
-                'top_n': 10,
+                'top_n': 20,
                 'num_hidden': 20,
             },
             'use_gpu': False,
             'logging': {
-                'log_every': 10,
+                'log_every': 50,
             },
             'bm25': {
                 'movielens': {
@@ -100,6 +104,10 @@ class Settings:
                 'movielens': 5,
                 'industrial_dataset1': 5,
             },
+            'min_relevant_items': { # minimum is 2 - one hidden and one for finding similar items
+                'movielens': 2,
+                'industrial_dataset1': 2,
+            }
         }
 
     def _load_config_file(self, config_file):
@@ -120,6 +128,14 @@ class Settings:
     @property
     def dataset(self):
         return self._config['datasets'][self.dataset_in_use]
+
+    @property
+    def dataset_name(self):
+        return self.dataset_in_use
+
+    @property
+    def min_relevant_items(self):
+        return self._config['min_relevant_items'][self.dataset_in_use]
 
     @property
     def aggregation_settings(self):

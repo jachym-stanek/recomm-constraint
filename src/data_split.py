@@ -60,7 +60,7 @@ class DataSplitter:
         print(f"[DataSplitter] Number of training users: {len(self.train_users)}")
         print(f"[DataSplitter] Number of testing users: {len(self.test_users)}")
 
-        data = self.rating_matrix
+        data = self.rating_matrix.copy()
 
         # Apply BM25 weighting if specified
         if bmB is not None:

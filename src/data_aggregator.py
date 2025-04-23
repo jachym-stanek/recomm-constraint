@@ -101,6 +101,9 @@ class DataAggregator:
         # create csr matrix
         self.rating_matrix = csr_matrix((data, (row_indices, col_indices)), shape=(num_users, num_items))
 
+        # eliminate zeroes
+        self.rating_matrix.eliminate_zeros()
+
         # Log rating matrix info
         all_values = np.unique(self.rating_matrix.data)
         print(f"[DataAggregator] Distinct values in rating matrix: {all_values}")
@@ -141,5 +144,4 @@ if __name__ == "__main__":
     settings = Settings()
     data_aggregator = DataAggregator(settings)
     # data_aggregator.aggregate('movielens')
-    # data_aggregator.aggregate('bookcrossing')
-    data_aggregator.aggregate('industrial_dataset1')
+    # data_aggregator.aggregate('industrial_dataset1')

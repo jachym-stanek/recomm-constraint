@@ -9,6 +9,7 @@ from src.settings import Settings
 from src.segmentation import SegmentationExtractor
 from src.algorithms.ILP import IlpSolver
 from src.constraints import Constraint
+from src.models import ALSModel, AnnoyALSModel
 
 
 class Evaluator:
@@ -16,21 +17,24 @@ class Evaluator:
         self.log_every = settings.log_every
         self.num_hidden = settings.recommendations['num_hidden'] # how many hidden items to evaluate recall@N per user
 
-    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10, take_random_hidden=False):
+    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10, take_random_hidden=False, min_relevant_items=3):
         print(f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall = 0.0
         user_count = 0
         total_items_recommended = set()
         skipped_users = 0
 
-        precomputed_neighborhoods = model.item_knn.compute_neighborhoods(model.item_factors)
+        if isinstance(model, ALSModel):
+            precomputed_neighborhoods = model.item_knn.compute_neighborhoods(model.item_factors)
+        else:
+            precomputed_neighborhoods = None
 
+        # for user in test_dataset.users:
         for user in range(len(test_dataset)):
-            user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
-            user_relevant_items = np.where(test_dataset.matrix[user].toarray() > 0)[1]
+            user_relevant_items = test_dataset.matrix[user].indices
 
             # if user has too few relevant items, skip
-            if len(user_relevant_items) < 3:
+            if len(user_relevant_items) < min_relevant_items:
                 skipped_users += 1
                 continue
 
@@ -44,7 +48,7 @@ class Evaluator:
                 else:
                     hidden_item = user_relevant_items[i]
                 not_yet_hidden.remove(hidden_item)
-                observed_items = set(user_interaction_vector)
+                observed_items = set(user_relevant_items)
                 observed_items.remove(hidden_item)
 
                 user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
@@ -52,7 +56,7 @@ class Evaluator:
                 # Generate recommendations
                 # print(f"obsrvation vector: {user_observation}")
                 # print(f"[Evaluator] User {user}, Dims of user obs: {user_observation.shape}, Observations: {observed_items}")
-                recomms, scores = model.recommend(user, user_observation, list(observed_items), N=N, precomputed_similarities=precomputed_neighborhoods, test_user=True)
+                recomms, scores = model.recommend(test_dataset.matrix, user, user_observation, list(observed_items), N=N, precomputed_similarities=precomputed_neighborhoods, test_user=True)
                 # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms}")
                 # print values of recommeded items in the user observation
                 # print(f"recommended items: {user_observation[0, recomms].toarray()}")
@@ -67,9 +71,11 @@ class Evaluator:
                 user_recall = np.mean(recalls)
                 total_recall += user_recall
                 user_count += 1
+            else: # in case model failed to recommend any items
+                skipped_users += 1
 
             if user_count % self.log_every == 0:
-                print(f"[Evaluator] Processed {user_count+skipped_users}/{len(test_dataset)} users. Average Recall@{N}: {total_recall / user_count:.4f} Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f}")
+                print(f"[Evaluator] Processed total {user_count+skipped_users}/{len(test_dataset)} users ({skipped_users} skipped). Average Recall@{N}: {total_recall / user_count:.4f} Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f}")
 
         average_recall = total_recall / user_count if user_count > 0 else 0
         print(f"[Evaluator] Average Recall@{N}: {average_recall:.4f}")

@@ -53,17 +53,22 @@ class ItemKnn(Algorithm):
 
         return top_K_indices, scores
 
-    def nearest_neighbors_precomputed(self, items: list, similarities, N: int):
+    def nearest_neighbors_precomputed(self, R, user, user_items: list, neighborhoods, N: int):
         recommended_items = {}
-        for item in items:
-            similar_items = similarities[item]  # Get similar items to user's interacted items
+        for item in user_items:
+            similar_items = neighborhoods[item]  # Get similar items to user's interacted items
+            Rui = R[user, item]  # Rating of the user for the item
             for sim_item in similar_items:
-                if sim_item not in items and sim_item not in recommended_items:
-                    recommended_items[sim_item] = similarities[item][sim_item]
+                if sim_item not in user_items and sim_item not in recommended_items:
+                    recommended_items[sim_item] = Rui * neighborhoods[item][sim_item]
                 elif sim_item in recommended_items:
-                    recommended_items[sim_item] += similarities[item][sim_item]
+                    recommended_items[sim_item] += Rui * neighborhoods[item][sim_item]
         # Sort recommended items by similarity score
         recommendations = sorted(recommended_items.items(), key=lambda x: x[1], reverse=True)
+        if len(recommendations) == 0:
+            print("[ItemKnn] WARNING: No recommendations found.")
+            return [], []
+
         items, scores = zip(*recommendations)
         return items[:N], scores[:N]
 

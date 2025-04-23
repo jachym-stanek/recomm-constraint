@@ -130,9 +130,6 @@ class DatasetTransformer:
         print(f"[DatasetTransformer] Transformation complete. Transformed data saved in '{transformed_data_dir}'.")
 
     def _transform_bookcrossing(self):
-        """
-        Deprecated
-        """
         # Ensure bookcrossing dataset is configured
         self.settings.set_dataset_in_use('bookcrossing')
 
@@ -307,5 +304,5 @@ class DatasetTransformer:
 if __name__ == "__main__":
     settings = Settings() # Load default settings
     transformer = DatasetTransformer(settings)
-    # transformer.transform(['movielens'])
-    transformer.transform(['industrial_dataset1'])
+    transformer.transform(['movielens'])
+    # transformer.transform(['industrial_dataset1'])
