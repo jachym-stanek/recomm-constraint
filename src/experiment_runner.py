@@ -29,11 +29,6 @@ class ExperimentRunner(object):
     # run experiment for a combination of two parameters value lists
     def run_experiments(self, parameter1_values, parameter2_values, parameter1_name, parameter2_name,
                        use_approximate_model=False, solver=None):
-        """
-        Input:
-            parameter1: dict<str, list<float>> - dictionary with parameter name and list of values
-            parameter2: dict<str, list<float>> - dictionary with parameter name and list of values
-        """
         print(f"[ExperimentRunner] Running experiment with parameters: {parameter1_name}, {parameter2_name}...")
 
         start_time = time.time()
@@ -104,13 +99,13 @@ class ExperimentRunner(object):
 
         print(f"[ExperimentRunner] Evaluation Metrics: {metrics}, processing time: {time.time() - start_time:.2f} seconds.")
 
-        self._save_metrics_to_file(metrics)
+        self._save_metrics_to_file(params_rewrite, metrics)
 
         return metrics
 
-    def _save_metrics_to_file(self, metrics):
+    def _save_metrics_to_file(self, params_rewrite, metrics):
         with open(self.results_file, 'a') as f:
-            f.write(f'{metrics}\n')
+            f.write(f'{(params_rewrite, metrics)}\n')
 
     def _get_rewrite_params(self, params_rewrite):
         params = self.default_params.copy()

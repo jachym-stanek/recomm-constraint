@@ -20,15 +20,21 @@ from matplotlib.lines import Line2D
 # num_nearest_neighbors = [2, 4, 6, 8, 10, 15, 20, 30, 50]
 # factors = [8, 16, 32, 64, 128, 256, 512, 1024]
 # num_nearest_neighbors = [2, 4, 8, 15, 30, 50]
-factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256]
+# factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256]
 # factors = [3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256, 512, 1024]
-num_trees = [2, 10, 50, 70, 100, 200]
+# num_trees = [2, 10, 50, 70, 100, 200]
+nearest_neighbors = [2, 4, 6, 8, 10, 12, 15, 17, 20, 25, 30, 40, 50]
+skipped_neighbors = [20, 25, 40]
+factors = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+skipped_factors = [2, 512]
+nearest_neighbors = [nn for nn in nearest_neighbors if nn not in skipped_neighbors]
+factors = [nf for nf in factors if nf not in skipped_factors]
 
 
 PLOT_CONSTRAINED = False
 
 results = []
-with open('results_id1_factors_vs_nt.txt', 'r') as f:
+with open('results_id1_factors_vs_num_neighbors_fixed.txt', 'r') as f:
     for line in f:
         # num_factors, num_iters, metrics = eval(line)
         # num_factors, alpha , metrics = eval(line)
@@ -42,8 +48,13 @@ with open('results_id1_factors_vs_nt.txt', 'r') as f:
         # results.append((num_factors, alpha, metrics))
         # if regularization != 1000:
         #     results.append((num_nn, regularization, metrics))
-        f, nt, metrics = eval(line)
-        results.append((f, nt, metrics))
+        # f, nt, metrics = eval(line)
+        params_rewrite, metrics = eval(line)
+        facs = params_rewrite['num_factors']
+        K = params_rewrite['nearest_neighbors']
+        if facs not in factors or K not in nearest_neighbors:
+            continue
+        results.append((facs, K, metrics))
 print(results)
 
 
@@ -51,7 +62,7 @@ print(results)
 fig, ax = plt.subplots(1, 2, figsize=(18, 7))
 
 # First plot: fixed num_factors, varying alpha
-for num_factors in factors:
+for nf in factors:
 # for nn in num_nearest_neighbors:
     recall = []
     catalog_coverage = []
@@ -61,7 +72,7 @@ for num_factors in factors:
     K_values = []
     regularization_values = []
     for result in results:
-        if result[0] == num_factors and result[2]['average_recall'] > 0.0:
+        if result[0] == nf and result[2]['average_recall'] > 0.0:
         # if result[0] == nn and result[2]['average_recall'] > 0.0:
             recall.append(result[2]['average_recall'])
             catalog_coverage.append(result[2]['catalog_coverage'])
@@ -72,7 +83,7 @@ for num_factors in factors:
             # regularization_values.append(result[1])
             K_values.append(result[1])
     # Plot unconstrained metrics
-    line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {num_factors}')
+    line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'Num factors: {nf}')
     # line, = ax[0].plot(recall, catalog_coverage, marker='o', label=f'K: {nn}')
     # Plot constrained metrics with same color, dotted line
     if PLOT_CONSTRAINED:
@@ -95,8 +106,8 @@ ax[0].set_ylabel('Catalog Coverage')
 # ax[0].set_title('Fixed Num Factors, Varying Alpha')
 # ax[0].set_title('Fixed Num Factors, Varying Regularization')
 # ax[0].set_title('Fixed Number of Nearest Neighbors, Varying Regularization')
-# ax[0].set_title('Fixed Number of Factors, Varying Number of Nearest Neighbors')
-ax[0].set_title('Fixed Number of Factors, Varying Number of Trees')
+ax[0].set_title('Fixed Number of Factors, Varying Number of Nearest Neighbors')
+# ax[0].set_title('Fixed Number of Factors, Varying Number of Trees')
 
 # Create custom legend entries for unconstrained and constrained
 handles, labels = ax[0].get_legend_handles_labels()
@@ -111,8 +122,8 @@ else:
 # Second plot: fixed alpha, varying num_factors
 # for alpha in alphas:
 # for regularization in regularizations:
-# for K in num_nearest_neighbors:
-for nt in num_trees:
+for K in nearest_neighbors:
+# for nt in num_trees:
     recall = []
     catalog_coverage = []
     recall_constrained = []
@@ -121,7 +132,7 @@ for nt in num_trees:
     for result in results:
         # if result[1] == alpha:
         # if result[1] == regularization and result[2]['average_recall'] > 0.0:
-        if result[1] == nt and result[2]['average_recall'] > 0.0:
+        if result[1] == K and result[2]['average_recall'] > 0.0:
             recall.append(result[2]['average_recall'] )
             catalog_coverage.append(result[2]['catalog_coverage'])
             if PLOT_CONSTRAINED:
@@ -131,7 +142,7 @@ for nt in num_trees:
     # Plot unconstrained metrics
     # line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'Alpha: {alpha}')
     # line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'Regularization: {regularization}')
-    line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'nt: {nt}')
+    line, = ax[1].plot(recall, catalog_coverage, marker='o', label=f'K: {K}')
     # Plot constrained metrics with same color, dotted line
     if PLOT_CONSTRAINED:
         ax[1].plot(recall_constrained, catalog_coverage_constrained, linestyle='dotted', color=line.get_color())
@@ -147,8 +158,8 @@ ax[1].set_ylabel('Catalog Coverage')
 # ax[1].set_title('Fixed Alpha, Varying Num Factors')
 # ax[1].set_title('Fixed Regularization, Varying Num Factors')
 # ax[1].set_title('Fixed Regularization, Varying Number of Nearest Neighbors')
-# ax[1].set_title('Fixed Number of Nearest Neighbors, Varying Number of Factors')
-ax[1].set_title('Fixed Number of Trees, Varying Number of Factors')
+ax[1].set_title('Fixed Number of Nearest Neighbors, Varying Number of Factors')
+# ax[1].set_title('Fixed Number of Trees, Varying Number of Factors')
 
 # Create custom legend entries for unconstrained and constrained
 handles, labels = ax[1].get_legend_handles_labels()

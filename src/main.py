@@ -14,6 +14,7 @@ RESULTS_FILE = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group
 def main():
     start_time = time.time()
     settings = Settings()
+    settings.set_dataset_in_use('industrial_dataset1')
     data_splitter = DataSplitter(settings)
     # data_splitter.load_data('movielens')
     data_splitter.load_data('industrial_dataset1')
@@ -25,10 +26,10 @@ def main():
     print(f"Test rating matrix shape: {test_dataset.matrix.shape}, Number of users: {len(test_dataset)}")
 
     # factors = [1, 2, 5, 7, 10, 20, 50, 100, 200, 500]
-    num_factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+    num_factors = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
     # factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256]
     # regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
-    nearest_neighbors = [2, 4, 6, 8, 10, 15, 20, 30, 50]
+    nearest_neighbors = [2, 4, 6, 8, 10, 12, 15, 17, 20, 25, 30, 40, 50]
     # nearest_neighbors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 40, 50]
     # num_trees = [2, 4, 8, 10, 16, 20, 30, 50, 70, 100, 200]
     num_trees = [2, 10, 50, 70, 100, 200]
