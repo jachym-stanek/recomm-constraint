@@ -23,10 +23,17 @@ from matplotlib.lines import Line2D
 # factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256]
 # factors = [3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256, 512, 1024]
 # num_trees = [2, 10, 50, 70, 100, 200]
-nearest_neighbors = [2, 4, 6, 8, 10, 12, 15, 17, 20, 25, 30, 40, 50]
-skipped_neighbors = [20, 25, 40]
-factors = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
-skipped_factors = [2, 512]
+
+# nearest_neighbors = [2, 4, 6, 8, 10, 12, 15, 17, 20, 25, 30, 40, 50]
+# skipped_neighbors = [20, 25, 40]
+# factors = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+# skipped_factors = [2, 512]
+
+nearest_neighbors = [2, 4, 6, 8, 10, 15, 20, 30, 50]
+factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+skipped_neighbors = []
+skipped_factors = []
+
 nearest_neighbors = [nn for nn in nearest_neighbors if nn not in skipped_neighbors]
 factors = [nf for nf in factors if nf not in skipped_factors]
 
@@ -34,7 +41,8 @@ factors = [nf for nf in factors if nf not in skipped_factors]
 PLOT_CONSTRAINED = False
 
 results = []
-with open('results_id1_factors_vs_num_neighbors_fixed.txt', 'r') as f:
+# with open('results_id1_factors_vs_num_neighbors_fixed.txt', 'r') as f:
+with open('results_movielens_nearest_neighbors_vs_factors.txt', 'r') as f:
     for line in f:
         # num_factors, num_iters, metrics = eval(line)
         # num_factors, alpha , metrics = eval(line)

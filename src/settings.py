@@ -69,7 +69,7 @@ class Settings:
             },
             'split': {
                 'movielens': {
-                    'train_ratio': 0.999,
+                    'train_ratio': 0.995,
                     'random_state': 10,
                 },
                 'industrial_dataset1': {
@@ -81,28 +81,12 @@ class Settings:
                 'top_n': 1000,
             },
             'recommendations': {
-                'top_n': 20,
-                'num_hidden': 20,
+                'top_n': 10,        # number of recommendations to generate
+                'num_hidden': 10,   # number of hidden items to use for evaluation
             },
             'use_gpu': False,
             'logging': {
                 'log_every': 50,
-            },
-            'bm25': {
-                'movielens': {
-                    'enabled': True,
-                    'K1': 100,
-                    'B': 0.8,
-                },
-                'industrial_dataset1': {
-                    'enabled': True,
-                    'K1': 100,
-                    'B': 0.8,
-                }
-            },
-            'nearest_neighbors': {
-                'movielens': 5,
-                'industrial_dataset1': 5,
             },
             'min_relevant_items': { # minimum is 2 - one hidden and one for finding similar items
                 'movielens': 2,
@@ -188,11 +172,3 @@ class Settings:
     @property
     def item_mapping_file(self):
         return self._config['datasets'][self.dataset_in_use]['transformed_data_dir'] + f"/{self.dataset_in_use}_item_id_mappings.json"
-
-    @property
-    def bm25(self):
-        return self._config['bm25'][self.dataset_in_use]
-
-    @property
-    def nearest_neighbors(self):
-        return self._config['nearest_neighbors'][self.dataset_in_use]

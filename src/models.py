@@ -55,7 +55,7 @@ class ALSModel(BaseModel):
         print("[ALSModel] Using model:", type(self.model))
 
         # Train the model
-        self.model.fit(rating_matrix * self.alpha)
+        self.model.fit(rating_matrix)
 
     def recommend(self, R: csr_matrix, user: int, user_observation: csr_matrix, observed_items: list, N: int, test_user: bool = True,
                   cold_start: bool = False, precomputed_similarities=None):
@@ -123,7 +123,7 @@ class AnnoyALSModel(BaseModel):
         print("[ALSModel] Using model:", type(self.model))
 
         # Train the model
-        self.model.fit(rating_matrix * self.alpha)
+        self.model.fit(rating_matrix)
 
     def recommend(self, R: csr_matrix, user: int, user_observation: csr_matrix, observed_items: list, N: int, test_user: bool = True,
                   cold_start: bool = False, precomputed_similarities=None):

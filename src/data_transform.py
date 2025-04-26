@@ -84,8 +84,8 @@ class DatasetTransformer:
 
         # leave only positive interactions (ratings > 3)
         interactions = interactions[interactions['interaction_value'] > 3]
-        # set all interactions to 1
-        # interactions['interaction_value'] = 1.0
+        # divide ratings by 5.0 to normalize to [0, 1]
+        interactions['interaction_value'] /= 5.0
 
         # print average amount of interactions per user
         print(f"[DatasetTransformer] Average amount of interactions per user: {interactions.groupby('user_id').size().mean()}")

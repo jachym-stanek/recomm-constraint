@@ -143,5 +143,5 @@ class DataAggregator:
 if __name__ == "__main__":
     settings = Settings()
     data_aggregator = DataAggregator(settings)
-    # data_aggregator.aggregate('movielens')
+    data_aggregator.aggregate('movielens')
     # data_aggregator.aggregate('industrial_dataset1')
