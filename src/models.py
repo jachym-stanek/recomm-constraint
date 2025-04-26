@@ -38,7 +38,7 @@ class ALSModel(BaseModel):
         self.model = None
 
     def train(self, train_dataset: Dataset):
-        print("[ALSModel] Training ALS model...")
+        print(f"[ALSModel] Training ALS model with params: {self.__dict__}...")
 
         rating_matrix = train_dataset.matrix.tocsr()
 
