@@ -452,15 +452,13 @@ def items_preprocessing_basic_test():
 
 def run_test_preprocessing(test_name, solver, preprocessor, items, segments, constraints, N, using_soft_constraints=False, verbose=False,
                            preprocessing_only=False, return_first_feasible=False):
-    segments_dict = {seg.id: seg for seg in segments}
-    item_segment_map = create_item_segment_map_from_segments(segments_dict)
-
     print(f"\n=== {test_name} ===")
     start_time = time.time()
-    filtered_items = preprocessor.preprocess_items(items, segments_dict, constraints, N)
+    filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
+    print(f"Number of filtered items: {len(filtered_items)}")
     if verbose:
         print(f"Filtered Items: {filtered_items}")
-    recommended_items = solver.solve(filtered_items, segments_dict, constraints, N, return_first_feasible=return_first_feasible)
+    recommended_items = solver.solve(filtered_items, segments, constraints, N, return_first_feasible=return_first_feasible)
 
     all_constraints_satisfied_preprocess = True
     total_score_preprocess = 0
@@ -468,7 +466,7 @@ def run_test_preprocessing(test_name, solver, preprocessor, items, segments, con
     # Check constraints
     if recommended_items:
         for constraint in constraints:
-            if not constraint.check_constraint(recommended_items, items, segments_dict):
+            if not constraint.check_constraint(recommended_items, items, segments):
                 all_constraints_satisfied_preprocess = False
                 print(f"Constraint {constraint} is not satisfied.")
         if all_constraints_satisfied_preprocess or using_soft_constraints:
@@ -476,7 +474,7 @@ def run_test_preprocessing(test_name, solver, preprocessor, items, segments, con
         for position, item_id in recommended_items.items():
             score = items[item_id]
             total_score_preprocess += score
-            item_segments = [seg.id for seg in segments if item_id in seg]
+            item_segments = [seg for seg in segments if item_id in segments[seg]]
             if verbose:
                 print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
         print(f"Total Score: {total_score_preprocess:.1f}")
@@ -491,7 +489,7 @@ def run_test_preprocessing(test_name, solver, preprocessor, items, segments, con
 
     # Run the test with the original items and segments
     start_time = time.time()
-    recommended_items = solver.solve(items, segments_dict, constraints, N, return_first_feasible=return_first_feasible)
+    recommended_items = solver.solve(items, segments, constraints, N, return_first_feasible=return_first_feasible)
 
     all_constraints_satisfied = True
     total_score = 0
@@ -499,7 +497,7 @@ def run_test_preprocessing(test_name, solver, preprocessor, items, segments, con
     # Check constraints
     if recommended_items:
         for constraint in constraints:
-            if not constraint.check_constraint(recommended_items, items, segments_dict):
+            if not constraint.check_constraint(recommended_items, items, segments):
                 all_constraints_satisfied = False
                 print(f"Constraint {constraint} is not satisfied.")
         if all_constraints_satisfied or using_soft_constraints:
@@ -507,7 +505,7 @@ def run_test_preprocessing(test_name, solver, preprocessor, items, segments, con
         for position, item_id in recommended_items.items():
             score = items[item_id]
             total_score += score
-            item_segments = [seg.id for seg in segments if item_id in seg]
+            item_segments = [seg for seg in segments if item_id in segments[seg]]
             if verbose:
                 print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
         print(f"Total Score: {total_score:.1f}")
@@ -527,7 +525,7 @@ def ILP_solve_with_already_recommeded_items_test():
     N = 10
     items = {f'item-{i}': 1.0 - i*0.01 for i in range(1, 101)} # Decreasing scores to check diversity
     segments_list = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * 20:(i + 1) * 20]) for i in range(5)]
-    segments = {seg.id: seg for seg in segments_list}
+    segments = {seg.label: seg for seg in segments_list}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=5)
     ]
@@ -776,26 +774,53 @@ def ILP_solve_for_overlapping_segments():
     solver = IlpSolver(verbose=False)
     preprocessor = ItemPreprocessor(verbose=True)
 
+    # Test case 1 - overlapping segments from the same property
     items = {f'item-{i}': i for i in range(1, 101)}
     segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:50])
     segment2 = Segment('segment2', 'test-prop', *list(items.keys())[25:75])
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
-    segments = [segment1, segment2, segment3, segment4]
+    segments = {f"{seg.id}-{seg.property}": seg for seg in [segment1, segment2, segment3, segment4]}
     N = 10
     constraints = [
         GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
     ]
     run_test_preprocessing("Test Case 1", solver, preprocessor, items, segments, constraints, N, verbose=True)
 
+    # Test case 2 - overlapping segments from the same properties
     items = {f'item-{i}': i for i in range(1, 21)}
     segment1 = Segment('segment1', 'test-prop', *list(items.keys())[5:])
     segment2 = Segment('segment2', 'test-prop', 'item-20', 'item-19', 'item-18', 'item-17', 'item-16')
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[::2])
     segment4 = Segment('segment4', 'test-prop', *list(items.keys())[1::2])
+    segments = {f"{seg.id}-{seg.property}": seg for seg in [segment1, segment2, segment3, segment4]}
     N = 6
     constraints = [GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=3, window_size=N)]
-    run_test_preprocessing("Test Case 2", solver, preprocessor, items, [segment1, segment2, segment3, segment4], constraints, N, verbose=True)
+    run_test_preprocessing("Test Case 2", solver, preprocessor, items, segments, constraints, N, verbose=True)
+
+    # Test case 3 - segments from different properties
+    items = {f'item-{i}': i for i in range(1, 201)}
+    segment1 = Segment('segment1', 'test-prop1', *list(items.keys())[150:])
+    segment2 = Segment('segment2', 'test-prop1', *list(items.keys())[50:100])
+    segment3 = Segment('segment1', 'test-prop2', *list(items.keys())[0:25])
+    segment4 = Segment('segment2', 'test-prop2', *list(items.keys())[1::2])
+    N = 10
+    constraints = [
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop1', min_items=1, weight=1.0, window_size=4),
+        MinSegmentsConstraint(segmentation_property='test-prop2', min_segments=1, window_size=3),
+        MaxItemsPerSegmentConstraint(segment_id='segment1', item_property='test-prop1', max_items=1, window_size=4),
+    ]
+    segments = {f"{seg.id}-{seg.property}": seg for seg in [segment1, segment2, segment3, segment4]}
+    run_test_preprocessing("Test Case 3", solver, preprocessor, items, segments, constraints, N, verbose=True)
+
+    # Test case 4 - random item scores
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
+    segment1 = Segment('segment1', 'test-prop1', *list(items.keys())[150:])
+    segment2 = Segment('segment2', 'test-prop1', *list(items.keys())[50:100])
+    segment3 = Segment('segment1', 'test-prop2', *list(items.keys())[0:25])
+    segment4 = Segment('segment2', 'test-prop2', *list(items.keys())[1::2])
+    segments = {f"{seg.id}-{seg.property}": seg for seg in [segment1, segment2, segment3, segment4]}
+    run_test_preprocessing("Test Case 4", solver, preprocessor, items, segments, constraints, N, verbose=True)
 
 
 def ILP_2D_constraints_test():
@@ -1597,12 +1622,12 @@ if __name__ == "__main__":
     # ILP_time_efficiency(constraint_weight=0.9)
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
-    # ILP_solve_with_already_recommeded_items_test()
+    ILP_solve_with_already_recommeded_items_test()
     # ILP_partitioning_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
     # ILP_2D_constraints_test()
-    ILP_solve_for_overlapping_segments()
+    # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')

@@ -316,11 +316,11 @@ class ItemPreprocessorDeprecated(Algorithm):
 
 
 class _SegmentClass(object):
-    def __init__(self, segments: list):
+    def __init__(self, segments: list, N: int):
         self._segments = segments
         self._items = list()
         self._min_items = 0
-        self._max_items = math.inf
+        self._max_items = N
 
     @property
     def segments(self):
@@ -373,10 +373,8 @@ class ItemPreprocessor(Algorithm):
 
         start_time = time.time()
 
-        segment_classes, item2segments = self._preprocess_segments(segments)
+        segment_classes, item2segments = self._preprocess_segments(segments, N)
 
-        minimum_segments = 0
-        maximum_segments = 0
         items_added_per_segment_class = {segment_class: 0 for segment_class in segment_classes.values()}
         minimum_satisfied = {segment_class: True for segment_class in segment_classes.values()}
         filtered_items = {}
@@ -385,16 +383,12 @@ class ItemPreprocessor(Algorithm):
             if isinstance(constraint, MaxItemsPerSegmentConstraint):
                 self._preprocess_MaxItemsPerSegmentConstraint(constraint, N, segment_classes, minimum_satisfied)
             elif isinstance(constraint, GlobalMaxItemsPerSegmentConstraint):
-                if not constraint.is_initialized:
-                    constraint.initialize_constraint_from_segments(segments)
-                for c in constraint.constraints:
+                for c in constraint.sub_constraints_from_segments(segments):
                     self._preprocess_MaxItemsPerSegmentConstraint(c, N, segment_classes, minimum_satisfied)
             elif isinstance(constraint, MinItemsPerSegmentConstraint):
                 self._preprocess_MinItemsPerSegmentConstraint(constraint, N, segment_classes, minimum_satisfied)
             elif isinstance(constraint, GlobalMinItemsPerSegmentConstraint):
-                if not constraint.is_initialized:
-                    constraint.initialize_constraint_from_segments(segments)
-                for c in constraint.constraints:
+                for c in constraint.sub_constraints_from_segments(segments):
                     self._preprocess_MinItemsPerSegmentConstraint(c, N, segment_classes, minimum_satisfied)
             elif isinstance(constraint, ItemAtPositionConstraint):
                 item_id = constraint.item_id
@@ -402,6 +396,8 @@ class ItemPreprocessor(Algorithm):
                     filtered_items[item_id] = items[item_id]
             elif isinstance(constraint, ItemFromSegmentAtPositionConstraint):
                 self._preprocess_ItemFromSegmentAtPositionConstraint(constraint, N, segment_classes, minimum_satisfied)
+            elif isinstance(constraint, MinSegmentsConstraint) or isinstance(constraint, MaxSegmentsConstraint):
+                self._preprocess_segment_constraint(constraint, N, segment_classes, minimum_satisfied)
 
         sorted_items = sorted(items.items(), key=lambda x: x[1], reverse=True)
 
@@ -449,25 +445,25 @@ class ItemPreprocessor(Algorithm):
         return filtered_items
 
     @staticmethod
-    def _preprocess_segments(segments: Dict[str, Segment]) -> Tuple[Dict[Tuple, _SegmentClass], Dict[str, list]]:
+    def _preprocess_segments(segments: Dict[str, Segment], N: int) -> Tuple[Dict[Tuple, _SegmentClass], Dict[str, list]]:
         """
         Extract segment classes (= all items that belong to the same segments will form a segment class) and item2segments map
         """
         segment_classes = {}
         item2segments = {}
 
-        for seg_id, segment in segments.items():
+        for seg_label, segment in segments.items():
             for item_id in segment:
                 if item_id in item2segments:
-                    item2segments[item_id].append(seg_id)
+                    item2segments[item_id].append(seg_label)
                 else:
-                    item2segments[item_id] = [seg_id]
+                    item2segments[item_id] = [seg_label]
 
         # create segment classes based on which segments the items belong to
         for item_id, seg_ids in item2segments.items():
             ordered_seg_ids = tuple(sorted(seg_ids))
             if ordered_seg_ids not in segment_classes:
-                segment_classes[ordered_seg_ids] = _SegmentClass(list(ordered_seg_ids))
+                segment_classes[ordered_seg_ids] = _SegmentClass(list(ordered_seg_ids), N)
             segment_classes[ordered_seg_ids].append(item_id)
 
         return segment_classes, item2segments
@@ -477,6 +473,8 @@ class ItemPreprocessor(Algorithm):
         """
         Get the segment class for the item
         """
+        if item_segments is None:
+            return None
         ordered_seg_ids = tuple(sorted(item_segments))
         if ordered_seg_ids in segment_classes:
             return segment_classes[ordered_seg_ids]
@@ -491,7 +489,7 @@ class ItemPreprocessor(Algorithm):
 
     def _preprocess_MaxItemsPerSegmentConstraint(self, constraint: MaxItemsPerSegmentConstraint, N: int,
                                                  segment_classes: Dict[Tuple, _SegmentClass], minimum_satisfied: Dict[_SegmentClass, bool]):
-        segment_id = constraint.segment_id
+        segment_label = constraint.label
         max_items = constraint.max_items
         window_size = constraint.window_size
 
@@ -500,14 +498,14 @@ class ItemPreprocessor(Algorithm):
 
         # Set the maximum to all Segment classes containing the segment
         for seg_class in segment_classes.values():
-            if seg_class.contains_segment(segment_id):
+            if seg_class.contains_segment(segment_label):
                 seg_class.min_items = max_total_items
                 seg_class.max_items = max_total_items
                 minimum_satisfied[seg_class] = False
 
     def _preprocess_MinItemsPerSegmentConstraint(self, constraint: MinItemsPerSegmentConstraint, N: int,
                                                  segment_classes: Dict[Tuple, _SegmentClass], minimum_satisfied: Dict[_SegmentClass, bool]):
-        segment_id = constraint.segment_id
+        segment_label = constraint.label
         min_items = constraint.min_items
         window_size = constraint.window_size
 
@@ -516,19 +514,26 @@ class ItemPreprocessor(Algorithm):
 
         # Set the minimum to all Segment classes containing the segment
         for seg_class in segment_classes.values():
-            if seg_class.contains_segment(segment_id):
+            if seg_class.contains_segment(segment_label):
                 seg_class.min_items = min_total_items
                 minimum_satisfied[seg_class] = False
 
     def _preprocess_ItemFromSegmentAtPositionConstraint(self, constraint: ItemFromSegmentAtPositionConstraint, N: int,
                                    segment_classes: Dict[Tuple, _SegmentClass], minimum_satisfied: Dict[_SegmentClass, bool]):
-        segment_id = constraint.segment_id
+        segment_label = constraint.label
 
         # all classes containing the segment have to have minimum at least 1 item
         for seg_class in segment_classes.values():
-            if seg_class.contains_segment(segment_id):
+            if seg_class.contains_segment(segment_label):
                 seg_class.min_items = 1
                 minimum_satisfied[seg_class] = False
+
+    def _preprocess_segment_constraint(self, constraint: Constraint, N: int, segment_classes: Dict[Tuple, _SegmentClass],
+                                       minimum_satisfied: Dict[_SegmentClass, bool]):
+        # if any segment constraint is set, then set all segment classes minimums to N
+        for seg_class in segment_classes.values():
+            seg_class.min_items = N
+            minimum_satisfied[seg_class] = False
 
     def _item_decision_function(self, item_segment_class: _SegmentClass,
                                 items_added_per_segment_class: Dict[_SegmentClass, int]) -> bool:

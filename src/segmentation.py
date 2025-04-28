@@ -13,6 +13,7 @@ class Segment(set):
         super().__init__(args)
         self.segment_id = segment_id
         self.segmentation_property = segmentation_property
+        self.label = str(segment_id) + '-' + segmentation_property
 
     def __repr__(self):
         return (f"Segment[segment id='{self.segment_id}', "

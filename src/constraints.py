@@ -33,14 +33,16 @@ class Constraint2D:
 
 
 class MinItemsPerSegmentConstraint(Constraint):
-    def __init__(self, segment_id, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
+    def __init__(self, segment_id, item_property, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
         super().__init__(name, weight)
         self.segment_id = segment_id
+        self.property = item_property
         self.min_items = min_items
         self.window_size = window_size
+        self.label = f"{self.segment_id}-{self.property}"
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        segment_items = segments[self.segment_id]
+        segment_items = segments[self.label]
 
         # constraint on recomm position
         for i in range(N - self.window_size + 1):
@@ -91,7 +93,7 @@ class MinItemsPerSegmentConstraint(Constraint):
 
     def add_to_cp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # Use the Segment object for this constraint.
-        seg = segments[self.segment_id]
+        seg = segments[self.label]
         for i in range(N - self.window_size + 1):
             window = positions[i : i + self.window_size]
             # Sum over all candidate items in the segment for positions in the window.
@@ -99,11 +101,11 @@ class MinItemsPerSegmentConstraint(Constraint):
 
     def add_to_permutation_cp_model(self, model, assign, solver_data, N):
         # Get the indicator list for this segment.
-        indicator_list = solver_data["segment_indicator"][self.segment_id]
+        indicator_list = solver_data["segment_indicator"][self.label]
         for i in range(N - self.window_size + 1):
             b_vars = []
             for p in range(i, i + self.window_size):
-                b = model.NewIntVar(0, 1, f"min_{self.segment_id}_{i}_{p}")
+                b = model.NewIntVar(0, 1, f"min_{self.label}_{i}_{p}")
                 model.AddElement(assign[p], indicator_list, b)
                 b_vars.append(b)
             model.Add(sum(b_vars) >= self.min_items)
@@ -113,7 +115,7 @@ class MinItemsPerSegmentConstraint(Constraint):
             solution = list(solution.values())
 
         N = len(solution)
-        segment_items = segments[self.segment_id]
+        segment_items = segments[self.label]
         for i in range(N - self.window_size + 1):
             window = solution[i:i + self.window_size]
             count = sum(1 for item_id in window if item_id in segment_items)
@@ -133,18 +135,20 @@ class MinItemsPerSegmentConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return f"{self.name}(segment_id={self.segment_id}, min_items={self.min_items}, window_size={self.window_size})"
+        return f"{self.name}(segment_id={self.segment_id}, property={self.property}, min_items={self.min_items}, window_size={self.window_size})"
 
 
 class MaxItemsPerSegmentConstraint(Constraint):
-    def __init__(self, segment_id, max_items, window_size, name="MaxItemsPerSegment", weight=1.0):
+    def __init__(self, segment_id, item_property, max_items, window_size, name="MaxItemsPerSegment", weight=1.0):
         super().__init__(name, weight)
         self.segment_id = segment_id
+        self.property = item_property
         self.max_items = max_items
         self.window_size = window_size
+        self.label = f"{self.segment_id}-{self.property}"
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        segment_items = segments[self.segment_id]
+        segment_items = segments[self.label]
 
         # constraint on recomm position
         for i in range(N - self.window_size + 1):
@@ -192,13 +196,13 @@ class MaxItemsPerSegmentConstraint(Constraint):
                     )
 
     def add_to_cp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        seg = segments[self.segment_id]
+        seg = segments[self.label]
         for i in range(N - self.window_size + 1):
             window = positions[i : i + self.window_size]
             model.Add(sum(x[item, p] for item in items if item in seg for p in window) <= self.max_items)
 
     def add_to_permutation_cp_model(self, model, assign, solver_data, N):
-        indicator_list = solver_data["segment_indicator"][self.segment_id]
+        indicator_list = solver_data["segment_indicator"][self.label]
         for i in range(N - self.window_size + 1):
             b_vars = []
             for p in range(i, i + self.window_size):
@@ -212,7 +216,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
             solution = list(solution.values())
 
         N = len(solution)
-        segment_items = segments[self.segment_id]
+        segment_items = segments[self.label]
         for i in range(N - self.window_size + 1):
             window = solution[i:i + self.window_size]
             count = sum(1 for item_id in window if item_id in segment_items)
@@ -232,17 +236,19 @@ class MaxItemsPerSegmentConstraint(Constraint):
         return True
 
     def __repr__(self):
-        return f"{self.name}(segment_id={self.segment_id}, max_items={self.max_items}, window_size={self.window_size})"
+        return f"{self.name}(segment_id={self.segment_id}, property={self.property}, max_items={self.max_items}, window_size={self.window_size})"
 
 
 class ItemFromSegmentAtPositionConstraint(Constraint):
-    def __init__(self, segment_id, position, name="ItemFromSegmentAtPosition", weight=1.0):
+    def __init__(self, segment_id, item_property, position, name="ItemFromSegmentAtPosition", weight=1.0):
         super().__init__(name, weight)
         self.segment_id = segment_id
+        self.property = item_property
         self.position = position
+        self.label = f"{self.segment_id}-{self.property}"
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        segment_items = segments[self.segment_id]
+        segment_items = segments[self.label]
         if self.weight < 1.0:
             # Soft constraint: Introduce slack variable
             s = model.addVar(lb=0, ub=1, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{self.position}")
@@ -260,13 +266,13 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
             )
 
     def add_to_permutation_cp_model(self, model, assign, solver_data, N):
-        indicator_list = solver_data["segment_indicator"][self.segment_id]
-        b = model.NewIntVar(0, 1, f"fromseg_{self.segment_id}_{self.position}")
+        indicator_list = solver_data["segment_indicator"][self.label]
+        b = model.NewIntVar(0, 1, f"fromseg_{self.label}_{self.position}")
         model.AddElement(assign[self.position], indicator_list, b)
         model.Add(b == 1)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
-        segment_items = segments[self.segment_id]
+        segment_items = segments[self.label]
         if type(solution) is dict:
             item_id = solution.get(self.position)
         else:
@@ -274,7 +280,7 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
         return item_id in segment_items
 
     def __repr__(self):
-        return f"{self.name}(segment_id={self.segment_id}, position={self.position})"
+        return f"{self.name}(segment_id={self.segment_id}, property={self.property}, position={self.position})"
 
 
 class ItemAtPositionConstraint(Constraint):
@@ -327,15 +333,15 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
         self.window_size = window_size
         self.constraints = [] # List of MinItemsPerSegmentConstraint for each segment with min_items and window_size = N
         self.verbose = verbose
-        self.is_initialized = False
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # create MinItemsPerSegmentConstraint for each segment
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
+        for segment_label in segments:
+            if segments[segment_label].property == self.segmentation_property:
+                segment_id = segments[segment_label].id
                 if self.verbose:
                     print(f"[{self.name}]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
-                constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, self.window_size, weight=self.weight)
+                constraint = MinItemsPerSegmentConstraint(segment_id, self.segmentation_property, self.min_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_ilp_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
 
@@ -361,13 +367,15 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
 
-    def initialize_constraint_from_segments(self, segments):
-        for segment_id in segments:
-            if segments[segment_id].property== self.segmentation_property:
-                constraint = MinItemsPerSegmentConstraint(segment_id, self.min_items, self.window_size, weight=self.weight)
-                self.constraints.append(constraint)
+    def sub_constraints_from_segments(self, segments):
+        constraints = []
+        for segment_label in segments:
+            if segments[segment_label].property== self.segmentation_property:
+                segment_id = segments[segment_label].id
+                constraint = MinItemsPerSegmentConstraint(segment_id, self.segmentation_property, self.min_items, self.window_size, weight=self.weight)
+                constraints.append(constraint)
 
-        self.is_initialized = True
+        return constraints
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, min_items={self.min_items}, window_size={self.window_size})"
@@ -386,15 +394,15 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
         self.window_size = window_size
         self.constraints = [] # List of MaxItemsPerSegmentConstraint for each segment with max_items and window_size = N
         self.verbose = verbose
-        self.is_initialized = False
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         # create MaxItemsPerSegmentConstraint for each segment
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
+        for segment_label in segments:
+            if segments[segment_label].property == self.segmentation_property:
+                segment_id = segments[segment_label].id
                 if self.verbose:
                     print(f"[{self.name}]Adding constraint for segment {segment_id}, property {self.segmentation_property}")
-                constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, self.window_size, weight=self.weight)
+                constraint = MaxItemsPerSegmentConstraint(segment_id, self.segmentation_property, self.max_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_ilp_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
 
@@ -420,13 +428,15 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
 
-    def initialize_constraint_from_segments(self, segments):
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
-                constraint = MaxItemsPerSegmentConstraint(segment_id, self.max_items, self.window_size, weight=self.weight)
-                self.constraints.append(constraint)
+    def sub_constraints_from_segments(self, segments):
+        constraints = []
+        for segment_label in segments:
+            if segments[segment_label].property == self.segmentation_property:
+                segment_id = segments[segment_label].id
+                constraint = MaxItemsPerSegmentConstraint(segment_id, self.segmentation_property, self.max_items, self.window_size, weight=self.weight)
+                constraints.append(constraint)
 
-        self.is_initialized = True
+        return constraints
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_items={self.max_items}, window_size={self.window_size})"
