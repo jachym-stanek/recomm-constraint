@@ -120,7 +120,8 @@ def plot_metric_grid(
 if __name__ == "__main__":
     # results_file = "results_movielens_nearest_neighbors_vs_factors.txt"
     # results_file = "results_id1_nn_vs_b.txt"
-    results_file = "results_id1_reg_vs_nn.txt"
+    # results_file = "results_id1_reg_vs_nn.txt"
+    results_file = "results_id1_factors_vs_nn_N10.txt"
     records: List[Record] = []
     with open(results_file) as f:
         for params, metrics in map(eval, f):
@@ -128,15 +129,16 @@ if __name__ == "__main__":
 
     skipped_values = {"bm25_B": [0.1, 0.6, 1.0, 1.5],
                       "num_iterations": [10],
-                      "nearest_neighbors": [2, 10, 20],
+                      "nearest_neighbors": [1,2,50],
+                      "num_factors": [1, 2, 4, 8],
                       "regularization": [1000],}
 
     fig, _ = plot_metric_grid(
         records,
-        param_a="nearest_neighbors",
-        param_b="regularization",
-        param_a_label="Nearest neighbors",
-        param_b_label="Regularization",
+        param_a="num_factors",
+        param_b="nearest_neighbors",
+        param_a_label="Number of factors",
+        param_b_label="Nearest neighbors",
         x_metric="average_recall",
         y_metric="catalog_coverage",
         omit=skipped_values,

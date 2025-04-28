@@ -12,9 +12,9 @@ class IlpSolver(Algorithm):
         super().__init__(name, description, verbose)
         self.time_limit = time_limit # in seconds, None for no limit
 
-    def solve_by_partitioning(self, item_preprocessor: ItemPreprocessor, items: Dict[str, float], segments: Dict[str, Segment],
-                              constraints: List[Constraint], N: int, partition_size: int,
-                              item_segment_map: Dict[str, str], look_ahead: bool = False):
+    def solve_by_slicing(self, item_preprocessor: ItemPreprocessor, items: Dict[str, float], segments: Dict[str, Segment],
+                         constraints: List[Constraint], N: int, partition_size: int,
+                         item_segment_map: Dict[str, str], look_ahead: bool = False):
         start_time = time.time()
 
         temp_item_segment_map = item_segment_map.copy()
@@ -34,7 +34,7 @@ class IlpSolver(Algorithm):
 
         while len(final_result) < N:
             if self.verbose:
-                print("===================================== Partitioning ======================================")
+                print("===================================== Slicing ======================================")
             if look_ahead:
                 partition_count = min(partition_size * 2, N - len(final_result))
             else:

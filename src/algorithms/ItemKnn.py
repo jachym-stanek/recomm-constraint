@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.neighbors import KNeighborsTransformer
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import pairwise_distances_chunked
 
 from src.algorithms.algorithm import Algorithm
 
@@ -95,3 +96,33 @@ class ItemKnn(Algorithm):
 
         print(f"[ItemKnn] Computed item neighborhoods in {time.time() - start:.2f} seconds.")
         return top_k_neighbors
+
+    def compute_neighborhoods_chunked(self, emb):
+        print("[ItemKnn] Computing item embedding neighborhoods...")
+        start_time = time.time()
+        top_k = {i: {} for i in range(len(emb))}
+
+        def accumulate(chunk, start):
+            sim = 1.0 - chunk  # convert cosine distance -> similarity
+            np.fill_diagonal(sim, -np.inf)  # self-sim on this sub-block
+            for i, row in enumerate(sim):
+                idx = np.argpartition(-row, self.K)[:self.K]
+                idx = idx[np.argsort(-row[idx])]
+                top_k[start + i] = {j: row[j] for j in idx}
+
+        gen = pairwise_distances_chunked(
+            emb,
+            metric='cosine',
+            working_memory=256,  # MB
+            reduce_func=lambda ch, s: accumulate(ch, s),
+            n_jobs=-1  # all CPUs
+        )
+        for _ in gen:  # consume the generator
+            pass
+
+        print(f"[ItemKnn] Computed item neighborhoods in {time.time() - start_time:.2f} seconds.")
+
+        return top_k
+
+    def __repr__(self):
+        return f"ItemKnn(K={self.K})"

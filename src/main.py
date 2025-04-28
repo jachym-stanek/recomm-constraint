@@ -29,16 +29,18 @@ def main():
     # factors = [1, 2, 5, 7, 10, 20, 50, 100, 200, 500]
     # num_factors = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
     # factors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 32, 64, 128, 256]
-    # regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+    regularizations = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     # nearest_neighbors = [2, 4, 6, 8, 10, 12, 15, 17, 20, 25, 30, 40, 50]
     # nearest_neighbors = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 40, 50]
     # num_trees = [2, 4, 8, 10, 16, 20, 30, 50, 70, 100, 200]
     # num_trees = [2, 10, 50, 70, 100, 200]
     # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
-    nearest_neighbors = [2, 4, 6, 8, 10, 15, 20, 30, 50]
-    num_factors = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
-    bm_bs = [0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 4.0, 8, 16][::-1]
+    # nearest_neighbors = [1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 60]
+    nearest_neighbors = [70, 100, 150, 200]
+    num_factors = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+    bm_bs = [0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 4.0, 8, 16]
+    num_iterations = [1, 2, 3, 5, 8, 10, 15]
 
     # segmentation_extractor = SegmentationExtractor(settings)
     # segmentation_extractor.extract_segments('genres')
@@ -46,11 +48,11 @@ def main():
 
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
 
-    # results = experiment_runner.run_experiments(nearest_neighbors, num_factors, 'nearest_neighbors', 'num_factors',
-    #                                             use_approximate_model=False, solver=None)
+    results = experiment_runner.run_experiments(num_factors, nearest_neighbors,  'num_factors', 'nearest_neighbors',
+                                                use_approximate_model=False, solver=None, retrain_every_rewrite=False)
 
-    results = experiment_runner.run_experiments(bm_bs, nearest_neighbors, 'bm25_B', 'nearest_neighbors',
-                                                use_approximate_model=False, solver=None)
+    # results = experiment_runner.run_experiments(num_iterations, nearest_neighbors, 'num_iterations', 'nearest_neighbors',
+    #                                             use_approximate_model=False, solver=None)
 
 def measure_changes_with_diversity_constraints():
     start_time = time.time()

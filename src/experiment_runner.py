@@ -1,5 +1,6 @@
 import time
 
+from src.algorithms.ItemKnn import ItemKnn
 from src.data_split import DataSplitter
 from src.evaluator import Evaluator
 from src.models import ALSModel, AnnoyALSModel
@@ -20,7 +21,7 @@ class ExperimentRunner(object):
             'regularization': 0.1,
             'num_iterations': 3,
             'alpha': 1.0,
-            'nearest_neighbors': 5,
+            'nearest_neighbors': 10,
             'num_trees': 50,
             'search_k': -1,
             'bm25_B': 0.8,
@@ -28,19 +29,24 @@ class ExperimentRunner(object):
 
     # run experiment for a combination of two parameters value lists
     def run_experiments(self, parameter1_values, parameter2_values, parameter1_name, parameter2_name,
-                       use_approximate_model=False, solver=None):
+                       use_approximate_model=False, solver=None, retrain_every_rewrite=True):
         print(f"[ExperimentRunner] Running experiment with parameters: {parameter1_name}, {parameter2_name}...")
 
         start_time = time.time()
         results = []
+        model = None
 
         for param1 in parameter1_values:
+            if not retrain_every_rewrite:
+                model = self._get_model_from_params_rewrite({parameter1_name: param1}, use_approximate_model=use_approximate_model)
+                model.train(self.train_dataset)
+
             for param2 in parameter2_values:
                 params_rewrite = {
                     parameter1_name: param1,
                     parameter2_name: param2
                 }
-                metrics = self._run_experiment_for_particular_params(params_rewrite,
+                metrics = self._run_experiment_for_particular_params(params_rewrite, model=model,
                                                                      use_approximate_model=use_approximate_model,
                                                                      solver=solver)
                 results.append(metrics)
@@ -50,7 +56,7 @@ class ExperimentRunner(object):
         return results
 
 
-    def _run_experiment_for_particular_params(self, params_rewrite, use_approximate_model=False, solver=None):
+    def _run_experiment_for_particular_params(self, params_rewrite, model=None, use_approximate_model=False, solver=None):
         print(f"[ExperimentRunner] Running experiment with special params: {params_rewrite}...")
 
         # if bm25 normalization is tested, we need to recreate the dataset
@@ -64,24 +70,16 @@ class ExperimentRunner(object):
 
         start_time = time.time()
 
-        params = self._get_rewrite_params(params_rewrite)
-
-        if use_approximate_model:
-            model = AnnoyALSModel(num_factors=params['num_factors'], regularization=params['regularization'],
-                                  num_iterations=params['num_iterations'], alpha=params['alpha'],
-                                  num_trees=params['num_trees'], use_gpu=self.settings.use_gpu)
-        else:
-            model = ALSModel(num_factors=params['num_factors'], regularization=params['regularization'],
-                             num_iterations=params['num_iterations'], alpha=params['alpha'],
-                             use_gpu=self.settings.use_gpu, nearest_neighbors=params['nearest_neighbors'])
-
-        model.train(self.train_dataset)
+        if model is None:
+            model = self._get_model_from_params_rewrite(params_rewrite, use_approximate_model=use_approximate_model)
+            model.train(self.train_dataset)
+        elif "nearest_neighbors" in params_rewrite: # if testing nearest neighbors and there is a model given, we need to replace ItemKNN
+            model.item_knn = ItemKnn(K=params_rewrite['nearest_neighbors'])
 
         print(f"[ExperimentRunner] Training completed in {time.time() - start_time:.2f} seconds.")
 
         # Evaluate the model
         evaluator = Evaluator(self.settings)
-
 
         if solver is not None:
             metrics = evaluator.evaluate_constrained_model(train_dataset=self.train_dataset, test_dataset=self.test_dataset,
@@ -94,7 +92,8 @@ class ExperimentRunner(object):
                 test_dataset=self.test_dataset,
                 model=model,
                 N=self.settings.recommendations['top_n'],
-                min_relevant_items=self.settings.min_relevant_items
+                min_relevant_items=self.settings.min_relevant_items,
+                take_random_hidden=self.settings.recommendations['take_random_hidden']
             )
 
         print(f"[ExperimentRunner] Evaluation Metrics: {metrics}, processing time: {time.time() - start_time:.2f} seconds.")
@@ -107,7 +106,15 @@ class ExperimentRunner(object):
         with open(self.results_file, 'a') as f:
             f.write(f'{(params_rewrite, metrics)}\n')
 
-    def _get_rewrite_params(self, params_rewrite):
+    def _get_model_from_params_rewrite(self, params_rewrite, use_approximate_model=False):
         params = self.default_params.copy()
         params.update(params_rewrite)
-        return params
+
+        if use_approximate_model:
+            return AnnoyALSModel(num_factors=params['num_factors'], regularization=params['regularization'],
+                                  num_iterations=params['num_iterations'], alpha=params['alpha'],
+                                  num_trees=params['num_trees'], use_gpu=self.settings.use_gpu)
+        else:
+            return ALSModel(num_factors=params['num_factors'], regularization=params['regularization'],
+                             num_iterations=params['num_iterations'], alpha=params['alpha'],
+                             use_gpu=self.settings.use_gpu, nearest_neighbors=params['nearest_neighbors'])

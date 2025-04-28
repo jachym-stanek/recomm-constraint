@@ -25,8 +25,8 @@ def run_test(test_name, solver, items, segments, constraints, N, using_soft_cons
     start_time = time.time()
     item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
     if partition_size is not None:
-        recommended_items = solver.solve_by_partitioning(items, segments, constraints, N, partition_size=partition_size,
-                                                         item_segment_map=item_segment_map, look_ahead=False)
+        recommended_items = solver.solve_by_slicing(items, segments, constraints, N, partition_size=partition_size,
+                                                    item_segment_map=item_segment_map, look_ahead=False)
     else:
         recommended_items = solver.solve(items, segments, constraints, N, already_recommended_items, return_first_feasible)
     print(f"Recommended Items: {recommended_items}")
@@ -1058,8 +1058,8 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
         # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
-        solution = solver.solve_by_partitioning(preprocessor, items, segments, constraints, N, partition_size=p,
-                                                      item_segment_map=temp_item_segment_map)
+        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, partition_size=p,
+                                           item_segment_map=temp_item_segment_map)
         results["partitioning"][f"{p}"] = dict()
         results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
@@ -1070,8 +1070,8 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         # solve with look ahead
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-        solution = solver.solve_by_partitioning(preprocessor, items, segments, constraints, N, partition_size=p,
-                                                      item_segment_map=temp_item_segment_map, look_ahead=True)
+        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, partition_size=p,
+                                           item_segment_map=temp_item_segment_map, look_ahead=True)
         results["partitioning_look_ahead"][f"{p}"] = dict()
         results["partitioning_look_ahead"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["partitioning_look_ahead"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)

@@ -1,6 +1,5 @@
 # evaluator.py
 from typing import List
-
 import numpy as np
 from scipy.sparse import csr_matrix
 
@@ -10,6 +9,7 @@ from src.segmentation import SegmentationExtractor
 from src.algorithms.ILP import IlpSolver
 from src.constraints import Constraint
 from src.models import ALSModel, AnnoyALSModel
+from src.algorithms.Preprocessor import ItemPreprocessor
 
 
 class Evaluator:
@@ -25,7 +25,8 @@ class Evaluator:
         skipped_users = 0
 
         if isinstance(model, ALSModel):
-            precomputed_neighborhoods = model.item_knn.compute_neighborhoods(model.item_factors)
+            # precomputed_neighborhoods = model.item_knn.compute_neighborhoods(model.item_factors)
+            precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)
         else:
             precomputed_neighborhoods = None
 
@@ -103,7 +104,11 @@ class Evaluator:
                 print(f"[Evaluator] Hidden item {hidden_items}, Recommendations: {recomms}")
 
     def evaluate_constrained_model(self, train_dataset: Dataset, test_dataset: Dataset, segmentation_extractor: SegmentationExtractor,
-                                   constraints: List[Constraint], model, N=10, M=100, take_random_hidden=False):
+                                   constraints: List[Constraint], model, N=10, M=100, take_random_hidden=False, method='ilp'):
+
+        if method not in ['ilp', 'filtering', 'slicing']:
+            raise ValueError(f"[Evaluator] Method {method} not supported. Supported methods: ilp, filtering, slicing")
+
         print(
             f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
         total_recall= 0.0
@@ -115,6 +120,7 @@ class Evaluator:
 
         precomputed_similarities = model.item_knn.compute_similarities(model.item_factors)
         solver = IlpSolver(verbose=False)
+        filterer = ItemPreprocessor
 
         for user in range(len(test_dataset)):
             user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
@@ -141,17 +147,9 @@ class Evaluator:
 
                 user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
 
-                # Generate M candidate items
-                inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M,
-                                                  precomputed_similarities=precomputed_similarities, test_user=True)
+                recomms_no_constraints, recomms_constrained = self._solve_ilp(user, model, solver, filterer, segmentation_extractor, method,
+                                                                              user_observation, observed_items, precomputed_similarities, N, M, constraints)
 
-                # select 10 items with the highest scores
-                recomms_no_constraints = inner_recomms[:N]
-
-                canditates = {item: score for item, score in zip(inner_recomms, scores)}
-                recomm_segments = segmentation_extractor.get_segments()
-
-                recomms_constrained = solver.solve(canditates, recomm_segments, constraints, N)
                 if recomms_constrained is None:
                     print(f"[Evaluator] No solution found for user {user}, Hidden item {hidden_item}")
                     continue
@@ -199,6 +197,29 @@ class Evaluator:
                 'average_recall_constrained': average_recall_constrained,
                 'catalog_coverage_constrained': len(total_items_recommended_constrained) / train_dataset.num_items}
 
+
+    def _solve_ilp(self, user, model, solver, filterer, segmentation_extractor, method, user_observation, observed_items, precomputed_neighborhoods, N, M, constraints):
+        inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M,
+                                                precomputed_similarities=precomputed_neighborhoods, test_user=True)
+
+        # select 10 items with the highest scores
+        recomms_no_constraints = inner_recomms[:N]
+
+        candidates = {item: score for item, score in zip(inner_recomms, scores)}
+        recomm_segments = segmentation_extractor.get_segments_for_recomms(candidates)
+
+        match method:
+            case 'ilp':
+                # ILP solver
+                recomms_constrained = solver.solve(candidates, recomm_segments, constraints, N)
+            case 'filtering':
+                # Filtering method
+                filtered_items = filterer.preprocess_items(candidates, recomm_segments, constraints, N)
+                recomms_constrained = solver.solve(candidates, recomm_segments, constraints, N)
+            case 'slicing':
+                pass
+
+        return recomms_no_constraints, recomms_constrained
 
     # separate test users by number of relevant items (ratings > 0)
     def separate_test_users_by_interactions(self, test_dataset: Dataset):

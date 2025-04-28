@@ -25,7 +25,7 @@ class BaseModel:
             raise NotImplementedError("Recommend method not implemented.")
 
 class ALSModel(BaseModel):
-    def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0, use_gpu=False, nearest_neighbors=5):
+    def __init__(self, num_factors=20, num_iterations=10, regularization=0.1, alpha=1.0, use_gpu=False, nearest_neighbors=10):
         super().__init__()
         self.num_factors = num_factors
         self.num_iterations = num_iterations
