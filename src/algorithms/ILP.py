@@ -21,7 +21,7 @@ class IlpSolver(Algorithm):
         items_remaining_per_segment = {segment_id: Segment(segment_id, segment.segmentation_property, *set(segment)) for segment_id, segment in segments.items()}
 
         if self.verbose:
-            print(f"[{self.name}] Solving ILP using partitioning with {len(items)} candidate items, {len(segments)} segments,"
+            print(f"[{self.name}] Solving ILP using slicing with {len(items)} candidate items, {len(segments)} segments,"
                   f" {len(constraints)} constraints, count={N}, partition size: {partition_size}.")
 
         if N < partition_size:

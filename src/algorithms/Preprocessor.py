@@ -88,7 +88,7 @@ class ItemPreprocessor(Algorithm):
             elif isinstance(constraint, ItemFromSegmentAtPositionConstraint):
                 self._preprocess_ItemFromSegmentAtPositionConstraint(constraint, N, segment_classes, minimum_satisfied)
             elif isinstance(constraint, MinSegmentsConstraint) or isinstance(constraint, MaxSegmentsConstraint):
-                self._preprocess_segment_constraint(constraint, N, segment_classes, minimum_satisfied)
+                self._preprocess_segment_constraint(constraint, N, segment_classes, minimum_satisfied, segments)
 
         sorted_items = sorted(items.items(), key=lambda x: x[1], reverse=True)
 
@@ -99,7 +99,7 @@ class ItemPreprocessor(Algorithm):
             item_segment_class = self._get_item_class(item_segments, segment_classes)
 
             # decide if to add item
-            if self._item_decision_function(item_segment_class, items_added_per_segment_class):
+            if self._item_decision_function(item_segment_class, items_added_per_segment_class, filtered_items, N):
                 filtered_items[item] = score
 
                 if item_segment_class is not None:
@@ -220,18 +220,23 @@ class ItemPreprocessor(Algorithm):
                 minimum_satisfied[seg_class] = False
 
     def _preprocess_segment_constraint(self, constraint: Constraint, N: int, segment_classes: Dict[Tuple, _SegmentClass],
-                                       minimum_satisfied: Dict[_SegmentClass, bool]):
+                                       minimum_satisfied: Dict[_SegmentClass, bool], segments: Dict[str, Segment]):
+        segmentation_property = constraint.segmentation_property
         # if any segment constraint is set, then set all segment classes minimums to N
         for seg_class in segment_classes.values():
-            seg_class.min_items = N
-            minimum_satisfied[seg_class] = False
+            # if the segment class contains any segment with the segmentation property, set the minimum items to N
+            if any(seg_class.contains_segment(seg.label) for seg in segments.values() if seg.property == segmentation_property):
+                seg_class.min_items = N
+                minimum_satisfied[seg_class] = False
 
     def _item_decision_function(self, item_segment_class: _SegmentClass,
-                                items_added_per_segment_class: Dict[_SegmentClass, int]) -> bool:
+                                items_added_per_segment_class: Dict[_SegmentClass, int], filtered_items, N) -> bool:
 
         # if item does not belong to any segment class, add it
-        if item_segment_class is None:
+        if item_segment_class is None and len(filtered_items) < N:
             return True
+        elif item_segment_class is None:
+            return False
         # item is added if the segment class has not satisfied the minimum items constraint
         if items_added_per_segment_class[item_segment_class] < item_segment_class.min_items:
             return True
