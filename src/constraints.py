@@ -34,6 +34,7 @@ class Constraint2D:
 
 class MinItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, item_property, min_items, window_size, name="MinItemsPerSegment", weight=1.0):
+        name = f"{name}_{segment_id}_{item_property}_{min_items}_{window_size}"
         super().__init__(name, weight)
         self.segment_id = segment_id
         self.property = item_property
@@ -44,18 +45,18 @@ class MinItemsPerSegmentConstraint(Constraint):
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         segment_items = segments[self.label]
 
+        if self.weight < 1.0:
+            s = _add_slack_variable(model, K, self.weight, self.name)
+
         # constraint on recomm position
         for i in range(N - self.window_size + 1):
             window = positions[i:i + self.window_size]
             if self.weight < 1.0:
                 # Soft constraint: Introduce slack variable
-                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}")
                 model.addConstr(
                     quicksum(x[i, row, p] for i in items if i in segment_items for p in window) + s >= self.min_items,
                     name=f"{self.name}_{i}"
                 )
-                penalty_coeff = K * self.weight / (1 - self.weight)
-                model._penalties.append((s, penalty_coeff))
             else:
                 # Hard constraint
                 model.addConstr(
@@ -74,15 +75,11 @@ class MinItemsPerSegmentConstraint(Constraint):
                 num_already_recommended = sum(1 for item_id in already_recommended_items[-i:] if item_id in segment_items)
 
                 if self.weight < 1.0:
-                    # Soft constraint: Introduce slack variable
-                    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_already_recommended_{i}")
                     model.addConstr(
                         quicksum(x[i, row, p] for i in items if i in segment_items for p in recomm_positions)
                         + num_already_recommended + s >= self.min_items,
                         name=f"{self.name}_already_recommended_{i}"
                     )
-                    penalty_coeff = K * self.weight / (1 - self.weight)
-                    model._penalties.append((s, penalty_coeff))
                 else:
                     # Hard constraint
                     model.addConstr(
@@ -140,6 +137,7 @@ class MinItemsPerSegmentConstraint(Constraint):
 
 class MaxItemsPerSegmentConstraint(Constraint):
     def __init__(self, segment_id, item_property, max_items, window_size, name="MaxItemsPerSegment", weight=1.0):
+        name = f"{name}_{segment_id}_{item_property}_{max_items}_{window_size}"
         super().__init__(name, weight)
         self.segment_id = segment_id
         self.property = item_property
@@ -150,18 +148,18 @@ class MaxItemsPerSegmentConstraint(Constraint):
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
         segment_items = segments[self.label]
 
+        if self.weight < 1.0:
+            s = _add_slack_variable(model, K, self.weight, self.name)
+
         # constraint on recomm position
         for i in range(N - self.window_size + 1):
             window = positions[i:i + self.window_size]
             if self.weight < 1.0:
                 # Soft constraint: Introduce slack variable
-                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}") # TODO maybe only one slack variable for all windows
                 model.addConstr(
                     quicksum(x[i, row, p] for i in items if i in segment_items for p in window) - s <= self.max_items,
                     name=f"{self.name}_{i}"
                 )
-                penalty_coeff = K * self.weight / (1 - self.weight)
-                model._penalties.append((s, penalty_coeff))
             else:
                 # Hard constraint
                 model.addConstr(
@@ -180,14 +178,10 @@ class MaxItemsPerSegmentConstraint(Constraint):
                 num_already_recommended = sum(1 for item_id in already_recommended_items[-i:] if item_id in segment_items)
 
                 if self.weight < 1.0:
-                    # Soft constraint: Introduce slack variable
-                    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_already_recommended_{i}")
                     model.addConstr(
                         quicksum(x[i, row, p] for i in items if i in segment_items for p in recomm_positions) + num_already_recommended - s <= self.max_items,
                         name=f"{self.name}_already_recommended_{i}"
                     )
-                    penalty_coeff = K * self.weight / (1 - self.weight)
-                    model._penalties.append((s, penalty_coeff))
                 else:
                     # Hard constraint
                     model.addConstr(
@@ -241,6 +235,7 @@ class MaxItemsPerSegmentConstraint(Constraint):
 
 class ItemFromSegmentAtPositionConstraint(Constraint):
     def __init__(self, segment_id, item_property, position, name="ItemFromSegmentAtPosition", weight=1.0):
+        name = f"{name}_{segment_id}_{item_property}_{position}"
         super().__init__(name, weight)
         self.segment_id = segment_id
         self.property = item_property
@@ -285,6 +280,7 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
 
 class ItemAtPositionConstraint(Constraint):
     def __init__(self, item_id, position, name="ItemAtPosition", weight=1.0):
+        name = f"{name}_{item_id}_{position}"
         super().__init__(name, weight)
         self.item_id = item_id
         self.position = position
@@ -327,6 +323,7 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
     """
 
     def __init__(self, segmentation_property, min_items, window_size, weight=1.0, name="GlobalMinItemsPerSegment", verbose=False):
+        name = f"{name}_{segmentation_property}_{min_items}_{window_size}"
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.min_items = min_items
@@ -388,6 +385,7 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
     """
 
     def __init__(self, segmentation_property, max_items, window_size, weight=1.0, name="GlobalMaxItemsPerSegment", verbose=False):
+        name = f"{name}_{segmentation_property}_{max_items}_{window_size}"
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.max_items = max_items
@@ -449,6 +447,7 @@ class MinSegmentsConstraint(Constraint):
     """
 
     def __init__(self, segmentation_property, min_segments, window_size, name="MinSegmentDiversity", weight=1.0, verbose=False):
+        name = f"{name}_{segmentation_property}_{min_segments}_{window_size}"
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.min_segments = min_segments
@@ -464,6 +463,9 @@ class MinSegmentsConstraint(Constraint):
         # binary variable for each segment and window y_{segment_id, i} = 1 if segment_id is represented in the window
         window_starts = range(N - self.window_size + 1)
         y = model.addVars([row], segment_ids, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
+
+        if self.weight < 1.0:
+            s = _add_slack_variable(model, K, self.weight, self.name)
 
         for i in range(N - self.window_size + 1):
             window = positions[i:i + self.window_size]
@@ -485,14 +487,10 @@ class MinSegmentsConstraint(Constraint):
 
             # constraint on the number of segments in the window
             if self.weight < 1.0:
-                # Soft constraint: Introduce slack variable
-                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}")
                 model.addConstr(
                     quicksum(y[row, segment_id, i] for segment_id in segment_ids) + s >= self.min_segments,
                     name=f"{self.name}_{i}"
                 )
-                penalty_coeff = K * self.weight / (1 - self.weight)
-                model._penalties.append((s, penalty_coeff))
             else:
                 # Hard constraint
                 model.addConstr(
@@ -530,13 +528,10 @@ class MinSegmentsConstraint(Constraint):
                                     )
                 # For the effective window, the count is constant (from already recommended items) plus contributions from the new part.
                 if self.weight < 1.0:
-                    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_already_{i}")
                     model.addConstr(
                         quicksum(new_y_vars[segment_id] for segment_id in new_y_vars) + const_sum + s >= self.min_segments,
                         name=f"{self.name}_already_{i}"
                     )
-                    penalty_coeff = K * self.weight / (1 - self.weight)
-                    model._penalties.append((s, penalty_coeff))
                 else:
                     model.addConstr(
                         quicksum(new_y_vars[segment_id] for segment_id in new_y_vars) + const_sum >= self.min_segments,
@@ -624,6 +619,7 @@ class MaxSegmentsConstraint(Constraint):
     """
 
     def __init__(self, segmentation_property, max_segments, window_size, name="MaxSegmentDiversity", weight=1.0, verbose=False):
+        name = f"{name}_{segmentation_property}_{max_segments}_{window_size}"
         super().__init__(name, weight)
         self.segmentation_property = segmentation_property
         self.max_segments = max_segments
@@ -639,6 +635,9 @@ class MaxSegmentsConstraint(Constraint):
         # binary variable for each segment and window y_{segment_id, i} = 1 if segment_id is represented in the window
         window_starts = range(N - self.window_size + 1)
         y = model.addVars([row], segment_ids, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
+
+        if self.weight < 1.0:
+            s = _add_slack_variable(model, K, self.weight, self.name)
 
         for i in range(N - self.window_size + 1):
             window = positions[i:i + self.window_size]
@@ -660,14 +659,10 @@ class MaxSegmentsConstraint(Constraint):
 
             # constraint on the number of segments in the window
             if self.weight < 1.0:
-                # Soft constraint: Introduce slack variable
-                s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_{i}")
                 model.addConstr(
                     quicksum(y[row, segment_id, i] for segment_id in segment_ids) - s <= self.max_segments,
                     name=f"{self.name}_{i}"
                 )
-                penalty_coeff = K * self.weight / (1 - self.weight)
-                model._penalties.append((s, penalty_coeff))
             else:
                 # Hard constraint
                 model.addConstr(
@@ -705,13 +700,10 @@ class MaxSegmentsConstraint(Constraint):
                                     )
                 # For the effective window, the count is constant (from already recommended items) plus contributions from the new part.
                 if self.weight < 1.0:
-                    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{self.name}_already_{i}")
                     model.addConstr(
                         const_sum + quicksum(new_y_vars[seg] for seg in new_y_vars) - s <= self.max_segments,
                         name=f"{self.name}_already_{i}"
                     )
-                    penalty_coeff = K * self.weight / (1 - self.weight)
-                    model._penalties.append((s, penalty_coeff))
                 else:
                     model.addConstr(
                         const_sum + quicksum(new_y_vars[seg] for seg in new_y_vars) <= self.max_segments,
@@ -827,3 +819,10 @@ class ItemUniqueness2D(Constraint2D):
 
     def __repr__(self):
         return f"{self.name}(width={self.width}, height={self.height})"
+
+def _add_slack_variable(model, K, weight, name):
+    s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{name}")
+    penalty_coeff = K * weight / (1 - weight)
+    model._penalties.append((s, penalty_coeff))
+
+    return s

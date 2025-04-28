@@ -242,6 +242,7 @@ def ILP_time_efficiency(constraint_weight=1.0, use_preprocessing=False):
     num_candidates = [10, 50, 100, 200, 500, 1000] # M
     num_constraints = [1, 2, 3, 4, 5, 8, 10, 15] # C
     results = dict() # (N, M, C) -> elapsed_time/elapsed_times
+    test_property = 'test-prop'
 
     for N in num_recomms:
         for M in num_candidates:
@@ -250,25 +251,25 @@ def ILP_time_efficiency(constraint_weight=1.0, use_preprocessing=False):
             items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
             num_segments = 10
             segment_size = M // num_segments
-            segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i*segment_size:(i+1)*segment_size]) for i in range(num_segments)]
+            segments = {f"segment{i}-{test_property}": Segment(f'segment{i}', test_property, *list(items.keys())[i*segment_size:(i+1)*segment_size]) for i in range(num_segments)}
             available_constraints = [
-                                        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=N//5,
+                                        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property=test_property, min_items=N//5,
                                                                      window_size=N, weight=constraint_weight) for i in range(num_segments)
                                     ] + [
-                                        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=N//5+1,
+                                        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property=test_property, max_items=N//5+1,
                                                                      window_size=N, weight=constraint_weight) for i in range(num_segments)
                                     ] + [
-                                        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2,
+                                        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property=test_property, min_items=2,
                                                                      window_size=5, weight=constraint_weight) for i in range(num_segments)
                                     ] + [
-                                        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3,
+                                        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property=test_property, max_items=3,
                                                                      window_size=5, weight=constraint_weight) for i in range(num_segments)
                                     ]
             if use_preprocessing:
                 C = 5
                 constraints = random.choices(available_constraints, k=C)
-                result = run_test_preprocessing(f"Test Case ({N}, {M}, {C})",
-                                                                                                            solver, items, segments,constraints, N)
+                result = run_test_preprocessing(f"Test Case ({N}, {M}, {C})", solver, ItemPreprocessor(), items, segments, constraints, N,
+                                                using_soft_constraints=True, preprocessing_only=False)
                 results[(N, M, C)] = result
             else:
                 for C in num_constraints:
@@ -1619,7 +1620,7 @@ def ILP_num_threads_test():
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
-    # ILP_time_efficiency(constraint_weight=0.9)
+    ILP_time_efficiency(constraint_weight=0.9)
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
     # ILP_solve_with_already_recommeded_items_test()
@@ -1627,7 +1628,7 @@ if __name__ == "__main__":
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
     # ILP_2D_constraints_test()
-    ILP_solve_for_overlapping_segments()
+    # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
