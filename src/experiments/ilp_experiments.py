@@ -20,45 +20,20 @@ from src.util import *
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
-             partition_size=None, verbose=True, return_first_feasible=False):
+             slice_size=None, verbose=True, return_first_feasible=False):
     print(f"\n=== {test_name} ===")
+    preprocessor = ItemPreprocessor(name="ItemPreprocessor", description="Item Preprocessor", verbose=verbose)
     start_time = time.time()
-    item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-    if partition_size is not None:
-        recommended_items = solver.solve_by_slicing(items, segments, constraints, N, partition_size=partition_size,
-                                                    item_segment_map=item_segment_map, look_ahead=False)
+    if slice_size is not None:
+        recommended_items = solver.solve_by_slicing(preprocessor, items, segments, constraints, N=N, slice_size=slice_size)
     else:
         recommended_items = solver.solve(items, segments, constraints, N, already_recommended_items, return_first_feasible)
     print(f"Recommended Items: {recommended_items}")
 
-    # Check constraints
-    if recommended_items:
-        all_constraints_satisfied = True
-        for constraint in constraints:
-            if not constraint.check_constraint(recommended_items, items, segments, already_recommended_items):
-                print(f"Constraint {constraint} is not satisfied.")
-                all_constraints_satisfied = False
-        if all_constraints_satisfied or using_soft_constraints:
-            print(f"All constraints are satisfied for {test_name}.")
-            if verbose:
-                print("Recommended Items:")
-                if already_recommended_items:
-                    for position, item_id in enumerate(already_recommended_items):
-                        item_segments = [seg_id for seg_id, segment in segments.items() if item_id in segment]
-                        print(f"Position {-len(already_recommended_items) + position}: {item_id} (Item segments: {item_segments})")
-            total_score = 0
-            for position, item_id in recommended_items.items():
-                score = items[item_id]
-                total_score += score
-                item_segments = [seg_id for seg_id, segment in segments.items() if item_id in segment]
-                if verbose:
-                    print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {score:.1f})")
-            print(f"Total Score: {total_score:.1f}")
-    else:
-        print(f"No solution found for {test_name}.")
-
     elapsed_time = (time.time() - start_time) * 1000  # Convert to milliseconds
     print(f"Elapsed time: {elapsed_time:.4f} milliseconds")
+
+    check_solution(test_name, constraints, recommended_items, items, segments, using_soft_constraints=using_soft_constraints, verbose=verbose)
 
     return elapsed_time
 
@@ -531,111 +506,149 @@ def ILP_solve_with_already_recommeded_items_test():
         GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=5)
     ]
     already_recommended_items = ['item-1', 'item-21', 'item-41', 'item-61', 'item-81', 'item-2', 'item-22', 'item-42', 'item-62', 'item-82']
-    run_test("Test Case 1", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+    # remove already recommended items from the items
+    candidate_items = remove_already_recommended_items_from_candidates(already_recommended_items, items)
+    run_test("Test Case 1", solver, candidate_items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
     already_recommended_items = ['item-1', 'item-2', 'item-21', 'item-22']
-    run_test("Test Case 2", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+    candidate_items = remove_already_recommended_items_from_candidates(already_recommended_items, items)
+    run_test("Test Case 2", solver, candidate_items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
     constraints = [
         GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)
     ]
     already_recommended_items = ['item-81', 'item-61', 'item-41', 'item-21', 'item-1']
-    run_test("Test Case 3", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+    candidate_items = remove_already_recommended_items_from_candidates(already_recommended_items, items)
+    run_test("Test Case 3", solver, candidate_items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
     constraints = [MaxSegmentsConstraint('test-prop', max_segments=3, window_size=3)]
     already_recommended_items = ['item-1', 'item-21', 'item-41']
+    candidate_items = remove_already_recommended_items_from_candidates(already_recommended_items, items)
     # should fill everything with the most scoring segment
-    run_test("Test Case 4", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+    run_test("Test Case 4", solver, candidate_items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
     constraints = [MinSegmentsConstraint('test-prop', min_segments=3, window_size=3)]
     already_recommended_items = ['item-1', 'item-21', 'item-41']
+    candidate_items = remove_already_recommended_items_from_candidates(already_recommended_items, items)
     # should fill everything with the 3 most scoring segments in order
-    run_test("Test Case 5", solver, items, segments, constraints, N, already_recommended_items=already_recommended_items)
+    run_test("Test Case 5", solver, candidate_items, segments, constraints, N, already_recommended_items=already_recommended_items)
 
+    items = {"item-1": 1, "item-2": 2, "item-3": 3, "item-4": 4, "item-5": 5, "item-6": 6, "item-7": 7, "item-8": 8,
+             "item-9": 9, "item-10": 10}
+    segment1 = Segment('segment1', 'test-prop', 'item-1', 'item-2', 'item-3', 'item-4', 'item-5')
+    segment2 = Segment('segment2', 'test-prop', 'item-6', 'item-7', 'item-8', 'item-9', 'item-10')
+    segments = {seg.label: seg for seg in [segment1, segment2]}
+    already_recommended_items = ['item-10', 'item-9', 'item-5']
 
+    N = 3
+    constraints = [
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=3)
+    ]
+    candidate_items = remove_already_recommended_items_from_candidates(already_recommended_items, items)
+    preprocessor = ItemPreprocessor(verbose=True)
+    filtered_items = preprocessor.preprocess_items(candidate_items, segments, constraints, N)
+    run_test("Test Case 6", solver, filtered_items, segments, constraints, N,
+             already_recommended_items=already_recommended_items)
 
-def ILP_partitioning_test():
+def basic_slicing_test():
     verbose = True
     solver = IlpSolver(verbose=verbose)
+    preprocessor = ItemPreprocessor()
+    items = {"item-1": 1, "item-2": 2, "item-3": 3, "item-4": 4, "item-5": 5, "item-6": 6, "item-7": 7, "item-8": 8,
+             "item-9": 9, "item-10": 10}
+    segment1 = Segment('segment1', 'test-prop', 'item-1', 'item-2', 'item-3', 'item-4', 'item-5')
+    segment2 = Segment('segment2', 'test-prop', 'item-6', 'item-7', 'item-8', 'item-9', 'item-10')
+    segments = {seg.label: seg for seg in [segment1, segment2]}
+    N = 10
+    constraints = [
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=3)
+    ]
+    # run_test_preprocessing("Test Case 4 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 4 slicing", solver, items, segments, constraints, N, slice_size=3, verbose=verbose)
+
+def ILP_slicing_test():
+    verbose = True
+    solver = IlpSolver(verbose=verbose)
+    preprocessor = ItemPreprocessor()
     num_items = 1000
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, num_items+1)}
     num_segments = 10
     segment_size = num_items // num_segments
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)]
+    segments = {f'segment{i}-test-prop': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
     N = 100
-    partition_size = 10
+    slice_size = 10
     constraints = [
-        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=1, window_size=10) for i in range(num_segments)
+        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property='test-prop', min_items=1, window_size=10, weight=1) for i in range(num_segments)
     ]
-    run_test_preprocessing("Test Case 1 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
-    run_test("Test Case 1 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    run_test_preprocessing("Test Case 1 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 1 slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
-    # Test Case 2: partition size smaller than window size
+    # Test Case 2: slice size smaller than window size
     constraints = [
-        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=2, window_size=20) for i in range(num_segments)
+        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property='test-prop', min_items=1, window_size=20, weight=1) for i in range(num_segments)
     ] + [
-        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=3, window_size=10) for i in range(num_segments)
+        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property='test-prop', max_items=3, window_size=10, weight=1) for i in range(num_segments)
     ]
-    run_test_preprocessing("Test Case 2 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
-    run_test("Test Case 2 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    run_test_preprocessing("Test Case 2 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 2 slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
     N = 200
     constraints = [
-        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', min_items=1, window_size=20) for i in range(num_segments)
+        MinItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property='test-prop', min_items=1, window_size=20, weight=1) for i in range(num_segments)
     ] + [
-        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', max_items=1, window_size=5) for i in range(num_segments)
+        MaxItemsPerSegmentConstraint(segment_id=f'segment{i}', item_property='test-prop', max_items=1, window_size=5, weight=1) for i in range(num_segments)
     ]
-    run_test_preprocessing("Test Case 3 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
-    run_test("Test Case 3 partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    run_test_preprocessing("Test Case 3 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 3 slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
     # Try when min per window is smaller than amount of segments and segments have decreasing scores
     items = {"item-1": 1, "item-2": 2, "item-3": 3, "item-4": 4, "item-5": 5, "item-6": 6, "item-7": 7, "item-8": 8, "item-9": 9, "item-10": 10}
     segment1 = Segment('segment1', 'test-prop', 'item-1', 'item-2', 'item-3', 'item-4', 'item-5')
     segment2 = Segment('segment2', 'test-prop', 'item-6', 'item-7', 'item-8', 'item-9', 'item-10')
-    segments = [segment1, segment2]
-    N = 10
+    segments = {seg.label: seg for seg in [segment1, segment2]}
+    N = 6
     constraints = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=3)]
-    run_test_preprocessing("Test Case 4 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
-    run_test("Test Case 4 partitioning", solver, items, segments, constraints, N, partition_size=3, verbose=verbose)
+    # run_test_preprocessing("Test Case 4 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 4 slicing", solver, items, segments, constraints, N, slice_size=3, verbose=verbose)
 
     items = {f"item-{i}": i for i in range(1, 31)}
     segment1 = Segment('segment1', 'test-prop', *list(items.keys())[:10])
     segment2 = Segment('segment2', 'test-prop', *list(items.keys())[10:20])
     segment3 = Segment('segment3', 'test-prop', *list(items.keys())[20:])
-    segments = [segment1, segment2, segment3]
-    N = 28
+    segments = {seg.label: seg for seg in [segment1, segment2, segment3]}
+    N = 20
     constraints = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=5)]
-    run_test_preprocessing("Test Case 5 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
-    run_test("Test Case 5 partitioning", solver, items, segments, constraints, N, partition_size=3, verbose=verbose)
+    run_test_preprocessing("Test Case 5 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 5 slicing", solver, items, segments, constraints, N, slice_size=3, verbose=verbose)
 
     # Test case 6 - 1000 items, 10 segments, 100 recomms, 10 partition size, mix Min and Max constraints
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 1001)}
     num_segments = 10
     segment_size = 100
-    segments = [Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)]
+    segments = {f'segment{i}-test-prop': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
     N = 100
-    partition_size = 10
+    slice_size = 10
     constraints = [
         GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop', min_items=1, weight=1.0, window_size=15),
         GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop', max_items=2, weight=1.0, window_size=15)
     ]
-    run_test_preprocessing("Test Case 6 preprocessing + normal", solver, items, segments, constraints, N, verbose=verbose)
-    run_test("Test Case 6a partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    run_test_preprocessing("Test Case 6 preprocessing + normal", solver, preprocessor, items, segments, constraints, N, verbose=verbose)
+    run_test("Test Case 6a slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
-    # Test case 6b - try larger partition size
-    partition_size = 20
-    run_test("Test Case 6b partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    # Test case 6b - try larger slice size
+    slice_size = 20
+    run_test("Test Case 6b slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
-    # Test case 6c - try smaller partition size
-    partition_size = 5
-    run_test("Test Case 6c partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    # Test case 6c - try smaller slice size
+    slice_size = 5
+    run_test("Test Case 6c slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
-    # Test case 6d - try partition size larger than window size
-    partition_size = 30
-    run_test("Test Case 6d partitioning", solver, items, segments, constraints, N, partition_size=partition_size, verbose=verbose)
+    # Test case 6d - try slice size larger than window size
+    slice_size = 30
+    run_test("Test Case 6d slicing", solver, items, segments, constraints, N, slice_size=slice_size, verbose=verbose)
 
-    # Test case 7 - erroneous case for p in {10, 25, 30} - possible could not be solved because unless we order items in a specific
-    # way (not greedily) there might not be a solution for next partition
+    # Test case 7 - erroneous case for s in {10, 25, 30} - possible could not be solved because unless we order items in a specific
+    # way (not greedily) there might not be a solution for next slice
     N = 50
     M = 100
     num_segments = 20
@@ -645,11 +658,11 @@ def ILP_partitioning_test():
     ]
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
     segment_size = M // num_segments
-    segments = [Segment(f'segment{i}', 'test-prop',
+    segments = {f"segment{i}-test-prop": Segment(f'segment{i}', 'test-prop',
                                        *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in
-                range(num_segments)]
-    for p in [ 25, 30]:
-        run_test(f"Test Case 7 partitioning p={p}", solver, items, segments, constraints, N, partition_size=p, verbose=verbose)
+                range(num_segments)}
+    for s in [ 25, 30]:
+        run_test(f"Test Case 7 slicing s={s}", solver, items, segments, constraints, N, slice_size=s, verbose=verbose)
 
 
 def ILP_partitioning_time_efficiency():
@@ -1053,9 +1066,9 @@ def check_constraints(recommended_items, items, segments, constraints):
     return all_constraints_satisfied
 
 
-def run_test_all_approaches(test_name, solver, preprocessor, items, segments, constraints, N, M, partition_sizes: list,
+def run_test_all_approaches(test_name, solver, preprocessor, items, segments, constraints, N, M, slice_sizes: list,
                             verbose=False, run_normal=True):
-    results = {"normal": dict(), "preprocessing": dict(), "preprocessing_first_feasible": dict(), "partitioning": dict(), "partitioning_look_ahead": dict()}
+    results = {"normal": dict(), "preprocessing": dict(), "preprocessing_first_feasible": dict(), "slicing": dict(), "slicing_look_ahead": dict()}
     if run_normal:
         start_time_normal = time.time()
         solution = solver.solve(items, segments, constraints, N)
@@ -1066,60 +1079,57 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
     item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
 
     start_time_preprocessing = time.time()
-    filtered_items = preprocessor.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
     solution = solver.solve(filtered_items, segments, constraints, N)
     results["preprocessing"]["time"] = (time.time() - start_time_preprocessing)*1000
     results["preprocessing"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
     results["preprocessing"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
     start_time_preprocessing = time.time()
-    filtered_items = preprocessor.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
     solution = solver.solve(filtered_items, segments, constraints, N, return_first_feasible=True)
     results["preprocessing_first_feasible"]["time"] = (time.time() - start_time_preprocessing)*1000
     results["preprocessing_first_feasible"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
     results["preprocessing_first_feasible"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
-    for p in partition_sizes:
+    for s in slice_sizes:
         # try:
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-        # filtered_items = solver.preprocess_items(items, segments, segments, constraints, item_segment_map, N)
-        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, partition_size=p,
-                                           item_segment_map=temp_item_segment_map)
-        results["partitioning"][f"{p}"] = dict()
-        results["partitioning"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
-        results["partitioning"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
-        results["partitioning"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, slice_size=s)
+        results["slicing"][f"{s}"] = dict()
+        results["slicing"][f"{s}"]["time"] = (time.time() - start_time_partitioning)*1000
+        results["slicing"][f"{s}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+        results["slicing"][f"{s}"]["score"] = sum([items[item_id] for item_id in solution.values()])
         # except Exception as e:
         #     print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
 
         # solve with look ahead
         start_time_partitioning = time.time()
         temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, partition_size=p,
-                                           item_segment_map=temp_item_segment_map, look_ahead=True)
-        results["partitioning_look_ahead"][f"{p}"] = dict()
-        results["partitioning_look_ahead"][f"{p}"]["time"] = (time.time() - start_time_partitioning)*1000
-        results["partitioning_look_ahead"][f"{p}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
-        results["partitioning_look_ahead"][f"{p}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, slice_size=s, look_ahead=True)
+        results["slicing_look_ahead"][f"{s}"] = dict()
+        results["slicing_look_ahead"][f"{s}"]["time"] = (time.time() - start_time_partitioning)*1000
+        results["slicing_look_ahead"][f"{s}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+        results["slicing_look_ahead"][f"{s}"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
     if verbose:
         print(f"\n=== {test_name} ===")
         if run_normal:
-            print("Normal:")
+            print("---Normal---")
             print(f"Time: {results['normal']['time']:.4f} ms")
             print(f"Constraints satisfied: {results['normal']['constraints_satisfied']}")
             print(f"Total score: {results['normal']['score']:.1f}")
-        print("Preprocessing:")
+        print("---Preprocessing---")
         print(f"Time: {results['preprocessing']['time']:.4f} ms")
         print(f"Constraints satisfied: {results['preprocessing']['constraints_satisfied']}")
         print(f"Total score: {results['preprocessing']['score']:.1f}")
-        print("Preprocessing + First Feasible:")
+        print("---Preprocessing + First Feasible---")
         print(f"Time: {results['preprocessing_first_feasible']['time']:.4f} ms")
         print(f"Constraints satisfied: {results['preprocessing_first_feasible']['constraints_satisfied']}")
         print(f"Total score: {results['preprocessing_first_feasible']['score']:.1f}")
-        for key, value in results["partitioning"].items():
-            print(f"Partition size: {key}")
+        for key, value in results["slicing"].items():
+            print(f"---Slice size {key}---")
             print(f"Time: {value['time']:.4f} ms")
             print(f"Constraints satisfied: {value['constraints_satisfied']}")
             print(f"Total score: {value['score']:.1f}")
@@ -1136,11 +1146,12 @@ def compare_ILP_approaches():
     num_segments = 10
     results = dict()
     solver = IlpSolver(verbose=False)
+    preprocessor = ItemPreprocessor(verbose=False)
     test_verbose = True
     for M in num_candidates:
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
         segment_size = M // num_segments
-        segments = {f'segment{i}': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
+        segments = {f'segment{i}-test-prop': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
 
         for N in num_recomms:
             if M <= N:
@@ -1149,7 +1160,7 @@ def compare_ILP_approaches():
                 GlobalMinItemsPerSegmentConstraint('test-prop', 1, 10, weight=0.9),
                 GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10, weight=0.9)
             ]
-            results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver,
+            results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, preprocessor,
                                                              items, segments, constraints, N, M, partition_sizes, verbose=test_verbose)
 
     num_recomms = [50, 100, 200]
@@ -1159,20 +1170,20 @@ def compare_ILP_approaches():
     for M in num_candidates:
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
         segment_size = M // num_segments
-        segments = {f'segment{i}': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
+        segments = {f'segment{i}-test-prop': Segment(f'segment{i}', 'test-prop', *list(items.keys())[i * segment_size:(i + 1) * segment_size]) for i in range(num_segments)}
 
         for N in num_recomms:
             if M <= N:
                 continue
             run_test_case_normal = True
-            if N >= 200 or M >= 300:
+            if N >= 100 or M >= 300:
                 run_test_case_normal = False
 
             constraints = [
                 GlobalMinItemsPerSegmentConstraint('test-prop', 1, 25, weight=0.9),
                 GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 30, weight=0.9)
             ]
-            results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, items, segments,
+            results[(M, N)] = run_test_all_approaches(f"Test Case N:{N}, M: {M}", solver, preprocessor, items, segments,
                                                       constraints, N, M, partition_sizes, verbose=test_verbose, run_normal=run_test_case_normal)
 
     # save results to a file
@@ -1620,16 +1631,17 @@ def ILP_num_threads_test():
 if __name__ == "__main__":
     # main()
     # ILP_time_efficiency()
-    ILP_time_efficiency(constraint_weight=0.9)
+    # ILP_time_efficiency(constraint_weight=0.9)
     # ILP_time_efficiency(constraint_weight=0.9, use_preprocessing=True)
     # ILP_basic_test()
     # ILP_solve_with_already_recommeded_items_test()
-    # ILP_partitioning_test()
+    # basic_slicing_test()
+    # ILP_slicing_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
     # ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
-    # compare_ILP_approaches()
+    compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()

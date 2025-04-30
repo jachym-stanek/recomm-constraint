@@ -17,27 +17,8 @@ from ilp_experiments import run_test_preprocessing as run_ilp_test_preprocessing
 from ilp_experiments import run_test_all_approaches as run_ilp_test_all_approaches
 from dfs_experiments import run_test_idfs
 from src.constraint_generator import ConstraintGenerator
+from src.util import check_solution
 
-
-def check_solution(test_name, constraints, recommended_items, items, segments_list, segments_dict, verbose=False):
-    total_score = 0
-    all_constraints_satisfied = True
-
-    if recommended_items:
-        for constraint in constraints:
-            if not constraint.check_constraint(recommended_items, items, segments_dict):
-                all_constraints_satisfied = False
-                if verbose:
-                    print(f"Constraint {constraint} is not satisfied for {test_name} test.")
-        for position, item_id in recommended_items.items():
-            total_score += items[item_id]
-            item_segments = [seg.id for seg in segments_list if item_id in seg]
-            if verbose:
-                print(f"Position {position}: {item_id} (Item segments: {item_segments} Score: {items[item_id]:.1f})")
-    else:
-        print(f"No solution found for {test_name} test.")
-
-    return total_score, all_constraints_satisfied
 
 def print_test_results(test_name, results):
     print(f"\n=== {test_name} ===")
@@ -76,7 +57,7 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
                 item_segment_map[item_id] = [seg_id]
 
     preprocessor = ItemPreprocessor(verbose=False)
-    filtered_items = preprocessor.preprocess_items(items.copy(), segments_dict.copy(), segments_dict.copy(), constraints, item_segment_map, N)
+    filtered_items = preprocessor.preprocess_items(items, segments_dict, constraints, N)
     cp_solver_preprocessing = CpSolver(filtered_items, segments_dict, constraints, N)
     if verbose:
         print(f"Filtered Items: {filtered_items}")
@@ -179,7 +160,7 @@ def compare_ilp_and_cp():
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
     segments_list = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i * 10:(i + 1) * 10])
                 for i in range(10)]
-    segments_dict = {seg.id: seg for seg in segments_list}
+    segments_dict = {seg.label: seg for seg in segments_list}
     solver = IlpSolver(verbose=False)
     preprocessor = ItemPreprocessor(verbose=False)
     results_increasing_N = dict()
@@ -204,11 +185,11 @@ def compare_ilp_and_cp():
     plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing  Optimal', color='green')
     # plot preprocessing with first feasible
     plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['preprocessing_first_feasible']['time'] for N in results_increasing_N], marker='o', label='ILP Preprocessing First Feasible', color='blue')
-    # plot partitioning approach in red
-    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['partitioning']['10']['time'] for N in results_increasing_N], marker='o', label='ILP Partitioning (p=10)', color='red')
+    # plot slicing approach in red
+    plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['ilp']['slicing']['10']['time'] for N in results_increasing_N], marker='o', label='ILP Slicing (s=10)', color='red')
     # plot look ahead approach in cyan
     plt.plot(list(results_increasing_N.keys()),
-             [results_increasing_N[N]['ilp']['partitioning_look_ahead']['10']['time'] for N in results_increasing_N],
+             [results_increasing_N[N]['ilp']['slicing_look_ahead']['10']['time'] for N in results_increasing_N],
              marker='o', label='ILP Look Ahead', color='cyan')
     # plot cp preprocessing optimal approach in orange
     # plt.plot(list(results_increasing_N.keys()), [results_increasing_N[N]['cp']['preprocessing_optimal']['time'] for N in results_increasing_N], marker='o', label='CP Preprocessing Optimal', color='orange')
@@ -252,7 +233,7 @@ def compare_ilp_and_cp():
     for M in [50, 100, 150, 200, 250, 300]:
         print(f"Running test for M={M}")
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
-        segments = {f'segment{i}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*(M//10):(i+1)*(M//10)]) for i in range(10)}
+        segments = {f'segment{i}-{segmentation_property}': Segment(f'segment{i}', segmentation_property, *list(items.keys())[i*(M//10):(i+1)*(M//10)]) for i in range(10)}
         constraints = [
             GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
             MinSegmentsConstraint(segmentation_property, 2, 5)
@@ -269,11 +250,11 @@ def compare_ilp_and_cp():
     plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['preprocessing']['time'] for M in results_increasing_M], marker='o', label='ILP Preprocessing  Optimal', color='green')
     # plot preprocessing with first feasible
     plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['preprocessing_first_feasible']['time'] for M in results_increasing_M], marker='o', label='ILP Preprocessing First Feasible', color='blue')
-    # plot partitioning approach in red
-    plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['partitioning']['10']['time'] for M in results_increasing_M], marker='o', label='Partitioning (p=10)', color='red')
+    # plot slicing approach in red
+    plt.plot(list(results_increasing_M.keys()), [results_increasing_M[M]['ilp']['slicing']['10']['time'] for M in results_increasing_M], marker='o', label='Slicing (s=10)', color='red')
     # plot look ahead approach in cyan
     plt.plot(list(results_increasing_M.keys()),
-             [results_increasing_M[M]['ilp']['partitioning_look_ahead']['10']['time'] for M in results_increasing_M],
+             [results_increasing_M[M]['ilp']['slicing_look_ahead']['10']['time'] for M in results_increasing_M],
              marker='o', label='ILP Look Ahead', color='cyan')
 
     # plot cp preprocessing first feasible approach in purple
@@ -298,7 +279,7 @@ def compare_ilp_and_cp():
     for S in [5, 10, 15, 20, 25, 30, 40, 50]:
         print(f"Running test for S={S}")
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
-        segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*(M//S):(i+1)*(M//S)]) for i in range(S)}
+        segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*(M//S):(i+1)*(M//S)]) for i in range(S)}
         constraints = [
             GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
             MinSegmentsConstraint(segmentation_property, 2, 5)
@@ -315,11 +296,11 @@ def compare_ilp_and_cp():
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['preprocessing']['time'] for S in results_increasing_S], marker='o', label='ILP Preprocessing Optimal', color='green')
     # plot preprocessing with first feasible
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['preprocessing_first_feasible']['time'] for S in results_increasing_S], marker='o', label='Preprocessing First Feasible', color='blue')
-    # plot partitioning approach in red
-    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['partitioning']['10']['time'] for S in results_increasing_S], marker='o', label='Partitioning (p=10)', color='red')
+    # plot slicing approach in red
+    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['slicing']['10']['time'] for S in results_increasing_S], marker='o', label='Slicing (s=10)', color='red')
     # plot look ahead approach in cyan
     plt.plot(list(results_increasing_S.keys()),
-             [results_increasing_S[S]['ilp']['partitioning_look_ahead']['10']['time'] for S in results_increasing_S],
+             [results_increasing_S[S]['ilp']['slicing_look_ahead']['10']['time'] for S in results_increasing_S],
              marker='o', label='ILP Look Ahead', color='cyan')
     # plot cp preprocessing first feasible approach in purple
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['cp']['preprocessing_first_feasible']['time'] for S in results_increasing_S], marker='o', label='CP Preprocessing First Feasible', color='purple')
@@ -337,5 +318,5 @@ def compare_ilp_and_cp():
 
 
 if __name__ == '__main__':
-    # compare_ilp_and_cp()
-    basic_test_cp()
+    compare_ilp_and_cp()
+    # basic_test_cp()

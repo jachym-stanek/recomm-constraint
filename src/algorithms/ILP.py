@@ -12,91 +12,59 @@ class IlpSolver(Algorithm):
         super().__init__(name, description, verbose)
         self.time_limit = time_limit # in seconds, None for no limit
 
-    def solve_by_slicing(self, item_preprocessor: ItemPreprocessor, items: Dict[str, float], segments: Dict[str, Segment],
-                         constraints: List[Constraint], N: int, partition_size: int,
-                         item_segment_map: Dict[str, str], look_ahead: bool = False):
-        start_time = time.time()
+    def solve_by_slicing(self, preprocessor: ItemPreprocessor, items: Dict[str, float], segments: Dict[str, Segment],
+                         constraints: List[Constraint], N: int, slice_size: int, look_ahead: bool = False):
 
-        temp_item_segment_map = item_segment_map.copy()
-        items_remaining_per_segment = {segment_id: Segment(segment_id, segment.segmentation_property, *set(segment)) for segment_id, segment in segments.items()}
+        start_time = time.time()
 
         if self.verbose:
             print(f"[{self.name}] Solving ILP using slicing with {len(items)} candidate items, {len(segments)} segments,"
-                  f" {len(constraints)} constraints, count={N}, partition size: {partition_size}.")
+                  f" {len(constraints)} constraints, count={N}, slice size: {slice_size}.")
 
-        if N < partition_size:
+        if N < slice_size:
             return self.solve(items, segments, constraints, N)
 
-        candidates = items.copy()
+        remaining_items = items.copy()
         final_result = {}
         already_recommended_items = []
-        partition_start = 0
+        slice_start = 0
 
         while len(final_result) < N:
             if self.verbose:
-                print("===================================== Slicing ======================================")
-            if look_ahead:
-                partition_count = min(partition_size * 2, N - len(final_result))
-            else:
-                partition_count = min(partition_size, N - len(final_result))
+                print("===================================== Solving ILP for a slice ======================================")
+            slice_N = min(slice_size, N - len(final_result)) # full slice or remaining items
+            slice_constraints = self._get_constraint_for_a_slice(constraints, slice_N, already_recommended_items)
+            slice_candidates = preprocessor.preprocess_items(remaining_items, segments, slice_constraints, slice_N)
+            slice_segments = self._get_slice_segments(segments, slice_candidates, already_recommended_items)
 
-            remaining_recomm_len = N - len(final_result)
-            partition_constraints = []
-            for constraint in constraints:
-                if isinstance(constraint, MaxItemsPerSegmentConstraint):
-                    window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count else constraint.window_size
-                    partition_constraints.append(MaxItemsPerSegmentConstraint(constraint.segment_id, constraint.max_items,
-                                                                              window_size, weight=constraint.weight))
-                elif isinstance(constraint, GlobalMaxItemsPerSegmentConstraint):
-                    window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count else constraint.window_size
-                    partition_constraints.append(GlobalMaxItemsPerSegmentConstraint(constraint.segmentation_property, constraint.max_items,
-                                                                                    window_size, weight=constraint.weight))
-                elif isinstance(constraint, MinItemsPerSegmentConstraint):
-                    window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count + len(already_recommended_items) else constraint.window_size
-                    partition_constraint_weight = 0.9 if constraint.weight == 1 and constraint.window_size > partition_count + len(already_recommended_items) else constraint.weight  # make min constraints soft if they are hard
-                    partition_constraints.append(MinItemsPerSegmentConstraint(constraint.segment_id, constraint.min_items,
-                                                                              window_size, weight=partition_constraint_weight))
-                elif isinstance(constraint, GlobalMinItemsPerSegmentConstraint):
-                    window_size = min(constraint.window_size, partition_count + len(already_recommended_items)) if constraint.window_size > partition_count else constraint.window_size
-                    partition_constraint_weight = 0.9 if constraint.weight == 1 and len(already_recommended_items) + partition_count < N else constraint.weight
-                    partition_constraints.append(GlobalMinItemsPerSegmentConstraint(constraint.segmentation_property, constraint.min_items,
-                                                                                    window_size, weight=partition_constraint_weight))
-                # TODO: also handle changing window size for SegmentDiversityConstraints
-                else:
-                    partition_constraints.append(constraint)
+            if self.verbose:
+                print(f"Already recommended items: {already_recommended_items}")
+                # get segments for the already recommended items
+                already_recommended_items_to_segments = {}
+                for item in already_recommended_items:
+                    item_segments = []
+                    for segment in segments.values():
+                        if item in segment:
+                            item_segments.append(segment.id)
+                    already_recommended_items_to_segments[item] = item_segments
+                for item in already_recommended_items:
+                    print(f"{already_recommended_items_to_segments[item]}", end=" ")
+                print()
 
-            partition_candidates = item_preprocessor.preprocess_items(candidates, items_remaining_per_segment, segments, constraints, N=partition_count,
-                                                         item_segment_map=item_segment_map,
-                                                         remaining_recomm_len=remaining_recomm_len,
-                                                         previous_recommended_items=already_recommended_items)
-
-            # already_recommended_segments = [temp_item_segment_map.get(item) for item in already_recommended_items]
-            # candidates_segments = [temp_item_segment_map.get(item) for item in partition_candidates.keys()]
-            # already_recommended_segments_count = {segment: already_recommended_segments.count(segment) for segment in set(already_recommended_segments)}
-            # candidates_segments_count = {segment: candidates_segments.count(segment) for segment in set(candidates_segments)}
-            # print(f"[ILP] Already recommended segments: {already_recommended_segments}, \nCandidate segments: {candidates_segments}")
-            # print(f"Already recommended segments count: {dict(sorted(already_recommended_segments_count.items(), key=lambda x: (x[0].rstrip('0123456789'), int(x[0][len(x[0].rstrip('0123456789')):]))))}, \nCandidate segments count:           {dict(sorted(candidates_segments_count.items(), key=lambda x: (x[0].rstrip('0123456789'), int(x[0][len(x[0].rstrip('0123456789')):]))))}")
-
-            partition_result = self.solve(partition_candidates, segments, partition_constraints, partition_count, already_recommended_items)
+            slice_result = self.solve(slice_candidates, slice_segments, slice_constraints, slice_N, already_recommended_items)
 
             # take only half
             if look_ahead:
-                taken_until = min(partition_size, len(partition_result))
-                partition_result = {k: v for k, v in partition_result.items() if k <= taken_until}
+                taken_until = min(slice_size, len(slice_result))
+                slice_result = {k: v for k, v in slice_result.items() if k <= taken_until}
 
             # Add the inner result to the final result and remove the recommended items from the candidate list
-            for position, item in partition_result.items():
-                final_result[position+partition_start] = item
+            for position, item in slice_result.items():
+                final_result[position+slice_start] = item
                 already_recommended_items.append(item)
-                candidates.pop(item)
-                item_segment = item_segment_map.get(item) # TODO: remove from all possible segments
-                if item_segment is not None:
-                    items_remaining_per_segment[item_segment].remove(item)
-                if item in item_segment_map:
-                    item_segment_map.pop(item)
+                remaining_items.pop(item)
 
-
-            partition_start += partition_size
+            slice_start += slice_N
 
         end_time = time.time()
 
@@ -104,6 +72,73 @@ class IlpSolver(Algorithm):
             print(f"[{self.name}] Partitioning solution finished in {(end_time - start_time) * 1000:.2f} ms")
 
         return final_result
+
+    """
+    We need to adjust constraints for a slice:
+     * Hard min constraints might not be possible to be satisfied (e.g. window size is 5, min segments is 4, and slice size is 3)
+       thus in this case we need to make them soft in order not to fail (this is not an issue for hard max constraints)
+     * If slice size is smaller than window size, we need to also adjust the window size
+    """
+    def _get_constraint_for_a_slice(self, constraints: List[Constraint], slice_N: int, already_recommended_items: List[str]):
+        slice_constraints = []
+
+        for constraint in constraints:
+            if isinstance(constraint, MaxItemsPerSegmentConstraint):
+                window_size = min(constraint.window_size, slice_N + len(already_recommended_items))
+                slice_constraints.append(MaxItemsPerSegmentConstraint(constraint.segment_id, constraint.property, constraint.max_items,
+                                                                          window_size, weight=constraint.weight))
+            elif isinstance(constraint, GlobalMaxItemsPerSegmentConstraint):
+                window_size = min(constraint.window_size, slice_N + len(already_recommended_items))
+                slice_constraints.append(GlobalMaxItemsPerSegmentConstraint(constraint.segmentation_property, constraint.max_items,
+                                                       window_size, weight=constraint.weight))
+            elif isinstance(constraint, MinItemsPerSegmentConstraint):
+                window_size = min(constraint.window_size, slice_N + len(already_recommended_items))
+                slice_constraint_weight = 0.9 if constraint.weight == 1 and constraint.window_size > slice_N + len(already_recommended_items) else constraint.weight  # make min constraints soft if they are hard
+                slice_constraints.append(MinItemsPerSegmentConstraint(constraint.segment_id, constraint.property, constraint.min_items,
+                                                                          window_size,
+                                                                          weight=slice_constraint_weight))
+            elif isinstance(constraint, GlobalMinItemsPerSegmentConstraint):
+                window_size = min(constraint.window_size, slice_N + len(already_recommended_items))
+                slice_constraint_weight = 0.9 if constraint.weight == 1 and constraint.window_size > slice_N + len(already_recommended_items) else constraint.weight
+                slice_constraints.append(GlobalMinItemsPerSegmentConstraint(constraint.segmentation_property, constraint.min_items,
+                                                       window_size, weight=slice_constraint_weight))
+            elif isinstance(constraint, MaxSegmentsConstraint):
+                window_size = min(constraint.window_size, slice_N + len(already_recommended_items))
+                slice_constraints.append(MaxSegmentsConstraint(constraint.segmentation_property, constraint.max_segments,
+                                                       window_size, weight=constraint.weight))
+            elif isinstance(constraint, MinSegmentsConstraint):
+                window_size = min(constraint.window_size, slice_N + len(already_recommended_items))
+                slice_constraint_weight = 0.9 if constraint.weight == 1 and constraint.window_size > slice_N + len(already_recommended_items) else constraint.weight
+                slice_constraints.append(MinSegmentsConstraint(constraint.segmentation_property, constraint.min_segments,
+                                                       window_size, weight=slice_constraint_weight))
+            else:
+                slice_constraints.append(constraint)
+
+        return slice_constraints
+
+    """
+    remove items that are not candidates or already recommended from segments
+    """
+    def _get_slice_segments(self, segments: Dict[str, Segment], items: Dict[str, float], already_recommended_items: List[str]):
+        needed_items = set(items.keys()).union(set(already_recommended_items))
+        reduced_segments = {}
+        for segment_label, segment in segments.items():
+            reduced_segments[segment_label] = Segment(segment.id, segment.property, *set(segment) & needed_items)
+        return reduced_segments
+
+    def _remove_item_from_segments(self, segments: Dict[str, Segment], item: str):
+        for segment in segments.values():
+            if item in segment:
+                segment.remove(item)
+        return segments
+
+    def _deep_copy_segments(self, segments: Dict[str, Segment]):
+        """
+        Create a deep copy of the segments dictionary.
+        :param segments: dict<seg_label, Segment>
+        :return: dict<seg_label, Segment>
+        """
+        return {seg_label: Segment(segment.id, segment.property, *segment) for seg_label, segment in segments.items()}
 
     def solve(self, items: Dict[str, float], segments: Dict[str, Segment], constraints: List[Constraint], N: int,
               already_recommended_items: List[str] = None, return_first_feasible: bool = False, num_threads: int = 0):

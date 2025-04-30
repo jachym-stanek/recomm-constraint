@@ -38,7 +38,7 @@ def run_test_idfs(test_name, items, segments, constraints, N):
         for item_id in segment:
             item_segment_map.setdefault(item_id, []).append(seg_id)
 
-    filtered_items = item_preprocessor.preprocess_items(items, segments.copy(), segments.copy(), constraints, item_segment_map, N)
+    filtered_items = item_preprocessor.preprocess_items(items, segments, constraints, N)
     solver_pre = IdfsSolver()
     solution = solver_pre.solve(filtered_items, segments, constraints, N)
     solution_time = (time.perf_counter() - start_time) * 1000  # convert to ms

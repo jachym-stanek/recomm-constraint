@@ -131,7 +131,7 @@ class ItemPreprocessor(Algorithm):
 
         if self.verbose:
             print(
-                f"[ILP] Total candidate items after preprocessing: {len(filtered_items)} time: {(time.time() - start_time) * 1000} milliseconds")
+                f"[Preprocessor] Total candidate items after preprocessing: {len(filtered_items)} time: {(time.time() - start_time) * 1000} milliseconds")
             print(f"Number of added items per segment class: {items_added_per_segment_class}")
         return filtered_items
 
