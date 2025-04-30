@@ -30,6 +30,7 @@ def plot_metric_grid(
     show_constrained: bool = False,
     constrained_suffix: str = "_constrained",
     figsize: Tuple[int, int] = (18, 7),
+    plot_panels: str = "both",
 ):
     param_a_label = param_a_label or param_a.replace("_", " ").title()
     param_b_label = param_b_label or param_b.replace("_", " ").title()
@@ -61,7 +62,13 @@ def plot_metric_grid(
     labeler = labeler or default_label
 
     # plotting
-    fig, ax = plt.subplots(1, 2, figsize=figsize)
+    if plot_panels not in ("left", "right", "both"):
+        raise ValueError("plot_panels must be 'left', 'right' or 'both'")
+
+    if plot_panels == "left" or plot_panels == "right":
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+    else:
+        fig, ax = plt.subplots(1, 2, figsize=figsize)
 
     def _panel(
         fixed: str, varying: str, groups, axis, title_tmpl: str, fixed_label: str, varying_label: str
@@ -108,10 +115,17 @@ def plot_metric_grid(
         axis.set_title(title_tmpl.format(fixed_label, varying_label))
         axis.legend()
 
-    _panel(param_a, param_b, by_a, ax[0],
-           "Fixed {} — varying {}", param_a_label, param_b_label)
-    _panel(param_b, param_a, by_b, ax[1],
-           "Fixed {} — varying {}", param_b_label, param_a_label)
+    if plot_panels == "both":
+        _panel(param_a, param_b, by_a, ax[0],
+               "Fixed {} — varying {}", param_a_label, param_b_label)
+        _panel(param_b, param_a, by_b, ax[1],
+               "Fixed {} — varying {}", param_b_label, param_a_label)
+    elif plot_panels == "left":
+        _panel(param_a, param_b, by_a, ax,
+               "Fixed {} — varying {}", param_a_label, param_b_label)
+    elif plot_panels == "right":
+        _panel(param_b, param_a, by_b, ax,
+               "Fixed {} — varying {}", param_b_label, param_a_label)
 
     fig.tight_layout()
     return fig, ax
@@ -121,7 +135,7 @@ if __name__ == "__main__":
     # results_file = "results_movielens_nearest_neighbors_vs_factors.txt"
     # results_file = "results_id1_nn_vs_b.txt"
     # results_file = "results_id1_reg_vs_nn.txt"
-    results_file = "results_id1_factors_vs_nn_N10.txt"
+    results_file = "results_movielens_factors_vs_nn_N10.txt"
     records: List[Record] = []
     with open(results_file) as f:
         for params, metrics in map(eval, f):
@@ -129,8 +143,8 @@ if __name__ == "__main__":
 
     skipped_values = {"bm25_B": [0.1, 0.6, 1.0, 1.5],
                       "num_iterations": [10],
-                      "nearest_neighbors": [1,2,50],
-                      "num_factors": [1, 2, 4, 8],
+                      "nearest_neighbors": [1, 8, 15, 30, 70, 150],
+                      "num_factors": [1, 2],
                       "regularization": [1000],}
 
     fig, _ = plot_metric_grid(
@@ -142,6 +156,8 @@ if __name__ == "__main__":
         x_metric="average_recall",
         y_metric="catalog_coverage",
         omit=skipped_values,
-        labeler=lambda p, varying: str(p[varying])  # annotate with varying value
+        labeler=lambda p, varying: str(p[varying]),  # annotate with varying value
+        figsize=(9, 7),
+        plot_panels="right"
     )
     plt.show()
