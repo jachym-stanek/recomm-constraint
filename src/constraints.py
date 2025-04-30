@@ -820,6 +820,10 @@ class ItemUniqueness2D(Constraint2D):
     def __repr__(self):
         return f"{self.name}(width={self.width}, height={self.height})"
 
+
+
+########################################### Helper functions ###########################################
+
 def _add_slack_variable(model, K, weight, name):
     s = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"s_{name}")
     penalty_coeff = K * weight / (1 - weight)
