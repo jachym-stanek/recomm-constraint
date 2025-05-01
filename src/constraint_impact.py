@@ -73,7 +73,7 @@ def measure_constraint_impact():
 
                 # Generate M candidate items
                 inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M, K=K,
-                                                        precomputed_similarities=precomputed_similarities,
+                                                        precomputed_neighborhoods=precomputed_similarities,
                                                         test_user=True)
 
                 # select 10 items with the highest scores

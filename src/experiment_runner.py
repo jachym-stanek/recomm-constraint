@@ -28,8 +28,8 @@ class ExperimentRunner(object):
         }
 
     # run experiment for a combination of two parameters value lists
-    def run_experiments(self, parameter1_values, parameter2_values, parameter1_name, parameter2_name,
-                       use_approximate_model=False, solver=None, retrain_every_rewrite=True):
+    def run_experiments_on_model_parameters(self, parameter1_values, parameter2_values, parameter1_name, parameter2_name,
+                                            use_approximate_model=False, retrain_every_rewrite=True):
         print(f"[ExperimentRunner] Running experiment with parameters: {parameter1_name}, {parameter2_name}...")
 
         start_time = time.time()
@@ -47,13 +47,45 @@ class ExperimentRunner(object):
                     parameter2_name: param2
                 }
                 metrics = self._run_experiment_for_particular_params(params_rewrite, model=model,
-                                                                     use_approximate_model=use_approximate_model,
-                                                                     solver=solver)
+                                                                     use_approximate_model=use_approximate_model)
                 results.append(metrics)
 
         print(f"[ExperimentRunner] Experiments completed in {time.time() - start_time:.2f} seconds.")
 
         return results
+
+    def run_experiments_on_solver(self, solvers, num_recomms_values, num_candidates_values, constraint_lists, slice_sizes, tested_item_properties, model_params=None):
+
+        if model_params is None:
+            model_params = dict()
+
+        segmentation_extractor = SegmentationExtractor(self.settings)
+        segmentation_extractor.extract_segments(tested_item_properties)
+
+        evaluator = Evaluator(self.settings, segmentation_extractor)
+        model = self._get_model_from_params_rewrite(model_params)
+        model.train(self.train_dataset)
+
+        results = []
+
+        for N in num_recomms_values:
+            for M in num_candidates_values:
+                for constraints in constraint_lists:
+                    metrics = evaluator.evaluate(
+                        train_dataset=self.train_dataset,
+                        test_dataset=self.test_dataset,
+                        model=model,
+                        N=self.settings.recommendations['top_n'],
+                        min_relevant_items=self.settings.min_relevant_items,
+                        take_random_hidden=self.settings.recommendations['take_random_hidden'],
+                        solvers=solvers,
+                        slice_sizes=slice_sizes,
+                        constraints=constraints
+                    )
+                    rewrites = {"N": N, "M": M, "constraints": constraints}
+                    print(f"[ExperimentRunner] Rewrites: {rewrites} Evaluation Metrics: {metrics}")
+                    self._save_metrics_to_file(rewrites, metrics)
+                    results.append((rewrites, metrics))
 
 
     def _run_experiment_for_particular_params(self, params_rewrite, model=None, use_approximate_model=False, solver=None):
@@ -73,28 +105,20 @@ class ExperimentRunner(object):
         if model is None:
             model = self._get_model_from_params_rewrite(params_rewrite, use_approximate_model=use_approximate_model)
             model.train(self.train_dataset)
+            print(f"[ExperimentRunner] Training completed in {time.time() - start_time:.2f} seconds.")
         elif "nearest_neighbors" in params_rewrite: # if testing nearest neighbors and there is a model given, we need to replace ItemKNN
             model.item_knn = ItemKnn(K=params_rewrite['nearest_neighbors'])
 
-        print(f"[ExperimentRunner] Training completed in {time.time() - start_time:.2f} seconds.")
-
         # Evaluate the model
         evaluator = Evaluator(self.settings)
-
-        if solver is not None:
-            metrics = evaluator.evaluate_constrained_model(train_dataset=self.train_dataset, test_dataset=self.test_dataset,
-                                                           segmentation_extractor=self.segmentation_extractor,
-                                                           constraints=self.constraints,
-                                                           model=model, N=self.settings.recommendations['top_n'])
-        else:
-            metrics = evaluator.evaluate_recall_at_n(
-                train_dataset=self.train_dataset,
-                test_dataset=self.test_dataset,
-                model=model,
-                N=self.settings.recommendations['top_n'],
-                min_relevant_items=self.settings.min_relevant_items,
-                take_random_hidden=self.settings.recommendations['take_random_hidden']
-            )
+        metrics = evaluator.evaluate(
+            train_dataset=self.train_dataset,
+            test_dataset=self.test_dataset,
+            model=model,
+            N=self.settings.recommendations['top_n'],
+            min_relevant_items=self.settings.min_relevant_items,
+            take_random_hidden=self.settings.recommendations['take_random_hidden']
+        )
 
         print(f"[ExperimentRunner] Evaluation Metrics: {metrics}, processing time: {time.time() - start_time:.2f} seconds.")
 

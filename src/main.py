@@ -1,5 +1,6 @@
 import time, os, re
 
+from src.algorithms.ILP import IlpSolver
 from src.constraints import GlobalMaxItemsPerSegmentConstraint
 from src.data_split import DataSplitter
 from src.evaluator import Evaluator
@@ -17,8 +18,7 @@ def main():
     # settings.set_dataset_in_use('industrial_dataset1')
     settings.set_dataset_in_use('movielens')
     data_splitter = DataSplitter(settings)
-    data_splitter.load_data('movielens')
-    # data_splitter.load_data('industrial_dataset1')
+    data_splitter.load_data(settings.dataset_name)
     data_splitter.split_data()
     train_dataset= data_splitter.get_train_data()
     test_dataset = data_splitter.get_test_data()
@@ -48,8 +48,18 @@ def main():
 
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
 
-    results = experiment_runner.run_experiments(num_factors, nearest_neighbors,  'num_factors', 'nearest_neighbors',
-                                                use_approximate_model=False, solver=None, retrain_every_rewrite=False)
+    # results = experiment_runner.run_experiments_on_model_parameters(num_factors, nearest_neighbors, 'num_factors', 'nearest_neighbors',
+    #                                                                 use_approximate_model=False, retrain_every_rewrite=False)
+
+
+    solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False), 'ilp-slicing': IlpSolver(verbose=False)}
+    num_recomms_values = [5, 10, 15, 20, 30, 50, 100]
+    num_candidates_values = [100, 200, 300, 400, 500, 1000]
+    constraint_lists = [
+
+    ]
+    slice_sizes = [2, 5, 7, 8, 10, 12, 15, 16, 20]
+    experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists, slice_sizes)
 
     # results = experiment_runner.run_experiments(num_iterations, nearest_neighbors, 'num_iterations', 'nearest_neighbors',
     #                                             use_approximate_model=False, solver=None)

@@ -58,11 +58,11 @@ class ALSModel(BaseModel):
         self.model.fit(rating_matrix)
 
     def recommend(self, R: csr_matrix, user: int, user_observation: csr_matrix, observed_items: list, N: int, test_user: bool = True,
-                  cold_start: bool = False, precomputed_similarities=None):
+                  cold_start: bool = False, precomputed_neighborhoods=None):
         if test_user:
             # Test user: Find similar items using item-based k-NN
-            if precomputed_similarities is not None:
-                recommended = self.item_knn.nearest_neighbors_precomputed(R, user, observed_items, precomputed_similarities, N)
+            if precomputed_neighborhoods is not None:
+                recommended = self.item_knn.nearest_neighbors_precomputed(R, user, observed_items, precomputed_neighborhoods, N)
             else:
                 recommended = self.item_knn.nearest_neighbors(observed_items, self.model.item_factors, N)
         elif cold_start:

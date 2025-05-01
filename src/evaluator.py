@@ -1,236 +1,191 @@
-# evaluator.py
-from typing import List
+import time
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Sequence, Set, Tuple
+
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from src.dataset import Dataset
-from src.settings import Settings
-from src.segmentation import SegmentationExtractor
-from src.algorithms.ILP import IlpSolver
-from src.constraints import Constraint
-from src.models import ALSModel, AnnoyALSModel
 from src.algorithms.Preprocessor import ItemPreprocessor
+from src.algorithms.algorithm import Algorithm
+from src.constraints import Constraint
+from src.segmentation import SegmentationExtractor
+from src.settings import Settings
+
+
+@dataclass
+class SolverResults:
+    """Keeps track of cumulative time for a single solver"""
+    total_time: float = 0.0
+    calls: int = 0
+
+    def add(self, elapsed: float) -> None:
+        self.total_time += elapsed
+        self.calls += 1
+
+    @property
+    def avg_time(self) -> float:
+        return self.total_time / self.calls if self.calls else 0.0
 
 
 class Evaluator:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, segmentation_extractor: SegmentationExtractor):
+        self.num_hidden = settings.recommendations['num_hidden']
         self.log_every = settings.log_every
-        self.num_hidden = settings.recommendations['num_hidden'] # how many hidden items to evaluate recall@N per user
+        self.preprocessor = ItemPreprocessor()
+        self.segmentation_extractor = segmentation_extractor
 
-    def evaluate_recall_at_n(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10, take_random_hidden=False, min_relevant_items=3):
-        print(f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
+    def evaluate(
+        self,
+        train_dataset,
+        test_dataset,
+        model,
+        *,
+        N: int = 10,
+        M: int = 100,
+        take_random_hidden: bool = False,
+        min_relevant_items: int = 3,
+        solvers: Dict[str, Algorithm] = None,
+        slice_sizes: List[int] = None,
+        constraints: List[Constraint] = None,
+    ):
+
+        precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)
+
         total_recall = 0.0
-        user_count = 0
         total_items_recommended = set()
+        user_count = 0
         skipped_users = 0
+        solver_stats = dict()
 
-        if isinstance(model, ALSModel):
-            # precomputed_neighborhoods = model.item_knn.compute_neighborhoods(model.item_factors)
-            precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)
-        else:
-            precomputed_neighborhoods = None
-
-        # for user in test_dataset.users:
-        for user in range(len(test_dataset)):
-            user_relevant_items = test_dataset.matrix[user].indices
-
-            # if user has too few relevant items, skip
-            if len(user_relevant_items) < min_relevant_items:
+        for user_idx in range(len(test_dataset)):
+            relevant_items = test_dataset.matrix[user_idx].indices
+            if len(relevant_items) < min_relevant_items:
                 skipped_users += 1
                 continue
 
             recalls = []
-            not_yet_hidden = set(user_relevant_items)
-            for i in range(self.num_hidden):
-                if len(not_yet_hidden) == 0:
+            hidden_pool = list(relevant_items)
+            for _ in range(self.num_hidden):
+                if not hidden_pool:
                     break
-                if take_random_hidden:
-                    hidden_item = np.random.choice(list(not_yet_hidden))
-                else:
-                    hidden_item = user_relevant_items[i]
-                not_yet_hidden.remove(hidden_item)
-                observed_items = set(user_relevant_items)
+
+                hidden_item = ( np.random.choice(hidden_pool) if take_random_hidden else relevant_items[_] )
+                hidden_pool.remove(hidden_item)
+
+                observed_items = set(relevant_items)
                 observed_items.remove(hidden_item)
 
-                user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
+                user_obs_csr = csr_matrix(test_dataset.matrix[user_idx, list(observed_items)])
 
-                # Generate recommendations
-                # print(f"obsrvation vector: {user_observation}")
-                # print(f"[Evaluator] User {user}, Dims of user obs: {user_observation.shape}, Observations: {observed_items}")
-                recomms, scores = model.recommend(test_dataset.matrix, user, user_observation, list(observed_items), N=N, precomputed_similarities=precomputed_neighborhoods, test_user=True)
-                # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms}")
-                # print values of recommeded items in the user observation
-                # print(f"recommended items: {user_observation[0, recomms].toarray()}")
-                # print()
+                # recommendation
+                if not solvers:
+                    recomms, _ = model.recommend( # we do not need scores here
+                        test_dataset.matrix,
+                        user_idx,
+                        user_obs_csr,
+                        list(observed_items),
+                        N=N,
+                        precomputed_neighborhoods=precomputed_neighborhoods,
+                        test_user=True,
+                    )
+                else:
+                    recomms, solver_times = self._recommend_with_solvers(
+                        user_idx,
+                        model,
+                        self.preprocessor,
+                        self.segmentation_extractor,
+                        solvers,
+                        user_obs_csr,
+                        observed_items,
+                        precomputed_neighborhoods,
+                        N=N,
+                        M=M,
+                        constraints=constraints,
+                        slice_sizes=slice_sizes,
+                    )
+                    for name, elapsed in solver_times.items():
+                        if name not in solver_stats:
+                            solver_stats[name] = SolverResults()
+                        solver_stats[name].add(elapsed)
 
-                # Compute recall
-                hit_count = 1 if hidden_item in recomms else 0
-                recalls.append(hit_count)
+                hit = int(hidden_item in recomms)
+                recalls.append(hit)
                 total_items_recommended.update(recomms)
 
             if recalls:
-                user_recall = np.mean(recalls)
-                total_recall += user_recall
+                total_recall += float(np.mean(recalls))
                 user_count += 1
-            else: # in case model failed to recommend any items
+            else:
                 skipped_users += 1
 
-            if user_count % self.log_every == 0:
-                print(f"[Evaluator] Processed total {user_count+skipped_users}/{len(test_dataset)} users ({skipped_users} skipped). Average Recall@{N}: {total_recall / user_count:.4f} Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f}")
-
-        average_recall = total_recall / user_count if user_count > 0 else 0
-        print(f"[Evaluator] Average Recall@{N}: {average_recall:.4f}")
-
-        return {'average_recall': average_recall, 'catalog_coverage': len(total_items_recommended) / train_dataset.num_items}
-
-    def evaluate_recall_at_n_batch(self, train_dataset: Dataset, test_dataset: Dataset, model, N=10):
-        """
-        Deprecated
-        """
-        user_groups = self.separate_test_users_by_interactions(test_dataset)
-
-        for num_relevant_items, users in user_groups.items():
-            print(f"[Evaluator] Evaluating Recall@N for users with {num_relevant_items} relevant items...")
-            users_interaction_matrix = test_dataset.matrix[users]
-            users_relevant_items = np.array([np.where(test_dataset.matrix[user].toarray() > 0)[1] for user in users])
-            print(f"[Evaluator] User relevant items shape: {users_relevant_items}")
-
-            for hidden_item_idx in range(num_relevant_items):
-                hidden_items = users_relevant_items[hidden_item_idx]
-                observed_items = np.delete(users_relevant_items, hidden_item_idx)
-                users_observations = csr_matrix(users_interaction_matrix[:, observed_items])
-
-                recomms, scores = model.recommend_batch(users, users_observations, observed_items, N)
-                print(f"[Evaluator] Hidden item {hidden_items}, Recommendations: {recomms}")
-
-    def evaluate_constrained_model(self, train_dataset: Dataset, test_dataset: Dataset, segmentation_extractor: SegmentationExtractor,
-                                   constraints: List[Constraint], model, N=10, M=100, take_random_hidden=False, method='ilp'):
-
-        if method not in ['ilp', 'filtering', 'slicing']:
-            raise ValueError(f"[Evaluator] Method {method} not supported. Supported methods: ilp, filtering, slicing")
-
-        print(
-            f"[Evaluator] Evaluating Recall@{N}, log_every: {self.log_every}, num_hidden: {self.num_hidden}, using model: {model}")
-        total_recall= 0.0
-        total_recall_constrained = 0.0
-        user_count = 0
-        total_items_recommended = set()
-        total_items_recommended_constrained = set()
-        skipped_users = 0
-
-        precomputed_similarities = model.item_knn.compute_similarities(model.item_factors)
-        solver = IlpSolver(verbose=False)
-        filterer = ItemPreprocessor
-
-        for user in range(len(test_dataset)):
-            user_interaction_vector = test_dataset.matrix[user].nonzero()[1]
-            user_relevant_items = np.where(test_dataset.matrix[user].toarray() > 0)[1]
-
-            # if user has too few relevant items, skip
-            if len(user_relevant_items) < 3:
-                skipped_users += 1
-                continue
-
-            recalls = []
-            recalls_constrained = []
-            not_yet_hidden = set(user_relevant_items)
-            for i in range(self.num_hidden):
-                if len(not_yet_hidden) == 0:
-                    break
-                if take_random_hidden:
-                    hidden_item = np.random.choice(list(not_yet_hidden))
-                else:
-                    hidden_item = user_relevant_items[i]
-                not_yet_hidden.remove(hidden_item)
-                observed_items = set(user_interaction_vector)
-                observed_items.remove(hidden_item)
-
-                user_observation = csr_matrix(test_dataset.matrix[user, list(observed_items)])
-
-                recomms_no_constraints, recomms_constrained = self._solve_ilp(user, model, solver, filterer, segmentation_extractor, method,
-                                                                              user_observation, observed_items, precomputed_similarities, N, M, constraints)
-
-                if recomms_constrained is None:
-                    print(f"[Evaluator] No solution found for user {user}, Hidden item {hidden_item}")
-                    continue
-                recomms_constrained_items = list(recomms_constrained.values())
-
-                # print constrainted recommendations
-                # print(f"[Evaluator] Recomms constrained:")
-                # for position, item in recomms_constrained.items():
-                #     score = canditates[item]
-                #     item_segments = [segment for segment in recomm_segments if item in segment]
-                #     print(f"Position: {position}, Item: {item}, Score: {score}, Segments: {item_segments}")
-
-                # Compute recall
-                hit_count = 1 if hidden_item in recomms_no_constraints else 0
-                recalls.append(hit_count)
-                total_items_recommended.update(recomms_no_constraints)
-
-                hit_count_constrained = 1 if hidden_item in recomms_constrained_items else 0
-                recalls_constrained.append(hit_count_constrained)
-                total_items_recommended_constrained.update(recomms_constrained_items)
-
-                # print(f"[Evaluator] User {user}, Hidden item {hidden_item}, Recommendations: {recomms_no_constraints}, Constrained: {recomms_constrained}")
-
-            if recalls:
-                user_recall = np.mean(recalls)
-                total_recall += user_recall
-                user_count += 1
-
-                user_recall_constrained = np.mean(recalls_constrained)
-                total_recall_constrained += user_recall_constrained
-
-            if user_count % self.log_every == 0 and user_count > 0:
+            if user_count and user_count % self.log_every == 0:
                 print(
-                    f"[Evaluator] Processed {user_count + skipped_users}/{len(test_dataset)} users. Average Recall@{N}: {total_recall / user_count:.4f} "
-                    f"Average catalog coverage: {len(total_items_recommended) / train_dataset.num_items:.4f} "
-                    f"Avg Recall@{N} constrained: {total_recall_constrained / user_count:.4f} "
-                    f"Catalog coverage constrained: {len(total_items_recommended_constrained) / train_dataset.num_items:.4f}")
+                    f"[Evaluator] processed {user_count + skipped_users}/{len(test_dataset)} users "
+                    f"({skipped_users} skipped). Average recall@{N} = {total_recall / user_count:.4f}, "
+                    f"catalog coverage = {len(total_items_recommended) / train_dataset.num_items:.4f}"
+                )
 
-        average_recall = total_recall / user_count if user_count > 0 else 0
-        average_recall_constrained = total_recall_constrained / user_count if user_count > 0 else 0
-        print(f"[Evaluator] Average Recall@{N}: {average_recall:.4f} Average Recall@{N} constrained: {average_recall_constrained:.4f}")
+        # final results
+        average_recall = total_recall / user_count if user_count else 0.0
+        catalog_coverage = len(total_items_recommended) / train_dataset.num_items
 
-        return {'average_recall': average_recall,
-                'catalog_coverage': len(total_items_recommended) / train_dataset.num_items,
-                'average_recall_constrained': average_recall_constrained,
-                'catalog_coverage_constrained': len(total_items_recommended_constrained) / train_dataset.num_items}
+        print(f"[Evaluator] finished. average recall@{N} = {average_recall:.4f}, catalog coverage = {catalog_coverage:.4f}")
 
+        if solvers is None:
+            return {'average_recall': average_recall, 'catalog_coverage': len(total_items_recommended) / train_dataset.num_items}
+        else:
+            return {name: solver_stats[name].avg_time for name in solver_stats}
 
-    def _solve_ilp(self, user, model, solver, filterer, segmentation_extractor, method, user_observation, observed_items, precomputed_neighborhoods, N, M, constraints):
-        inner_recomms, scores = model.recommend(user, user_observation, list(observed_items), N=M,
-                                                precomputed_similarities=precomputed_neighborhoods, test_user=True)
+    def _recommend_with_solvers(
+        self,
+        user_idx: int,
+        model,
+        preprocessor: ItemPreprocessor,
+        segmentation_extractor: SegmentationExtractor,
+        solvers: Dict[str, Algorithm],
+        user_observation: csr_matrix,
+        observed_items: Set[int],
+        precomputed_neighborhoods,
+        N: int,
+        M: int,
+        constraints: List[Constraint],
+        slice_sizes: List[int],
+    ) -> Tuple[List[int], Dict[str, float]]:
 
-        # select 10 items with the highest scores
-        recomms_no_constraints = inner_recomms[:N]
+        solver_times: Dict[str, float] = {}
 
+        inner_recomms, scores = model.recommend(user_idx, user_observation, list(observed_items), N=M,
+                                                precomputed_neighborhoods=precomputed_neighborhoods, test_user=True)
+
+        # we always keep the top‑N as baseline
         candidates = {item: score for item, score in zip(inner_recomms, scores)}
-        recomm_segments = segmentation_extractor.get_segments_for_recomms(candidates)
+        candidates_segments = segmentation_extractor.get_segments_for_recomms(candidates)
+        unconstrained_recomms: List[int] = inner_recomms[:N]
 
-        match method:
-            case 'ilp':
-                # ILP solver
-                recomms_constrained = solver.solve(candidates, recomm_segments, constraints, N)
-            case 'filtering':
-                # Filtering method
-                filtered_items = filterer.preprocess_items(candidates, recomm_segments, constraints, N)
-                recomms_constrained = solver.solve(candidates, recomm_segments, constraints, N)
-            case 'slicing':
-                pass
+        for name, solver in solvers.items():
 
-        return recomms_no_constraints, recomms_constrained
+            if name == "ilp-slicing":
+                for s in slice_sizes:
+                    elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, s)
+                    solver_times[f"{name}-s={s}"] = elapsed
+            elif name == "ilp-preprocessing":
+                elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, preprocess=True)
+                solver_times[name] = elapsed
+            else:
+                elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N)
+                solver_times[name] = elapsed
 
-    # separate test users by number of relevant items (ratings > 0)
-    def separate_test_users_by_interactions(self, test_dataset: Dataset):
-        print("[Evaluator] Separating test users by number of relevant items...")
-        user_groups = {}
+        return unconstrained_recomms, solver_times
 
-        for user in range(len(test_dataset)):
-            user_relevant_items = np.where(test_dataset.matrix[user].toarray() > 0)[1]
-            num_relevant_items = len(user_relevant_items)
-            if num_relevant_items not in user_groups:
-                user_groups[num_relevant_items] = []
-            user_groups[num_relevant_items].append(user)
-
-        return user_groups
+    def _solve_recomms(self, solver, preprocessor, candidates, candidates_segments, constraints, N, s=None, preprocess=False):
+        start = time.perf_counter()
+        try:
+            if s is None and not preprocess:
+                recomms = solver.solve(candidates, candidates_segments, constraints, N)
+            elif s is None and preprocess:
+                candidates = preprocessor.preprocess_items(candidates, candidates_segments, constraints, N)
+                recomms = solver.solve(candidates, candidates_segments, constraints, N)
+            else:
+                recomms = solver.solve_by_slicing(preprocessor, candidates, candidates_segments, constraints, N=N, slice_size=s)
+        finally:
+            return time.perf_counter() - start
