@@ -33,6 +33,8 @@ class IlpSolver(Algorithm):
             if self.verbose:
                 print("===================================== Solving ILP for a slice ======================================")
             slice_N = min(slice_size, N - len(final_result)) # full slice or remaining items
+            if look_ahead:
+                slice_N = slice_size * 2
             slice_constraints = self._get_constraint_for_a_slice(constraints, slice_N, already_recommended_items)
             slice_candidates = preprocessor.preprocess_items(remaining_items, segments, slice_constraints, slice_N)
             slice_segments = self._get_slice_segments(segments, slice_candidates, already_recommended_items)

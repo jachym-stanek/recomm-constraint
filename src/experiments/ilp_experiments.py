@@ -1076,8 +1076,6 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         results["normal"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
         results["normal"]["score"] = sum([items[item_id] for item_id in solution.values()])
 
-    item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-
     start_time_preprocessing = time.time()
     filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
     solution = solver.solve(filtered_items, segments, constraints, N)
@@ -1607,8 +1605,8 @@ def ILP_timeout_test():
     print(f"Score 1: {score1}, Score 2: {score2}")
 
 def ILP_num_threads_test():
-    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
-    segments = {f'segment-{i}': Segment(f'segment-{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(10)}
+    items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 401)}
+    segments = {f'segment-{i}-test-prop': Segment(f'segment-{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(20)}
     N = 20
     constraints = [
         GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10),
@@ -1616,7 +1614,7 @@ def ILP_num_threads_test():
     ]
     solver = IlpSolver(verbose=True)
     results = dict()
-    for num_threads in [1, 2, 4, 8]:
+    for num_threads in [1, 2, 4, 8, 12, 16, 20]:
         print(f"Running test with {num_threads} threads")
         start = time.time()
         recomms = solver.solve(items, segments, constraints, N, num_threads=num_threads)
@@ -1641,7 +1639,7 @@ if __name__ == "__main__":
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
     # ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
-    compare_ILP_approaches()
+    # compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()
     # plot_results_all_approaches('results_ILP_compare_approaches.pkl')
     # ILP_2D_constraints_test_preprocessing()
@@ -1649,4 +1647,4 @@ if __name__ == "__main__":
     # compare_ILP_approaches_speed()
     # ilp_return_first_feasible_test()
     # ILP_timeout_test()
-    # ILP_num_threads_test()
+    ILP_num_threads_test()

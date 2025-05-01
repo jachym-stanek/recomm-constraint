@@ -47,25 +47,16 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
     results = {"preprocessing_optimal": dict(), "preprocessing_first_feasible": dict(), "optimal": dict(), "first_feasible": dict(),
                "permutation_optimal": dict()}
 
-    segments_dict = {seg.id: seg for seg in segments}
-    item_segment_map = dict()
-    for seg_id, segment in segments_dict.items():
-        for item_id in segment:
-            if item_id in item_segment_map:
-                item_segment_map[item_id].append(seg_id)
-            else:
-                item_segment_map[item_id] = [seg_id]
-
     preprocessor = ItemPreprocessor(verbose=False)
-    filtered_items = preprocessor.preprocess_items(items, segments_dict, constraints, N)
-    cp_solver_preprocessing = CpSolver(filtered_items, segments_dict, constraints, N)
+    filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
+    cp_solver_preprocessing = CpSolver(filtered_items, segments, constraints, N)
     if verbose:
         print(f"Filtered Items: {filtered_items}")
 
     start_time = time.time()
     recommended_items_optimal = cp_solver_preprocessing.solve_optimal()
     elapsed_time_preprocessing_optimal = (time.time() - start_time) * 1000
-    score, constraints_satisfied = check_solution("Preprocessing optimal", constraints, recommended_items_optimal[0], items, segments, segments_dict, verbose)
+    score, constraints_satisfied = check_solution("Preprocessing optimal", constraints, recommended_items_optimal[0], items, segments, verbose)
     results["preprocessing_optimal"]["time"] = elapsed_time_preprocessing_optimal
     results["preprocessing_optimal"]["score"] = score
     results["preprocessing_optimal"]["constraints_satisfied"] = constraints_satisfied
@@ -73,7 +64,7 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
     start_time = time.time()
     recommended_items_first_feasible = cp_solver_preprocessing.solve_first_feasible()
     elapsed_time_preprocessing_first_feasible = (time.time() - start_time) * 1000
-    score, constraints_satisfied = check_solution("Preprocessing first feasible", constraints, recommended_items_first_feasible[0], items, segments, segments_dict, verbose)
+    score, constraints_satisfied = check_solution("Preprocessing first feasible", constraints, recommended_items_first_feasible[0], items, segments, verbose)
     results["preprocessing_first_feasible"]["time"] = elapsed_time_preprocessing_first_feasible
     results["preprocessing_first_feasible"]["score"] = score
     results["preprocessing_first_feasible"]["constraints_satisfied"] = constraints_satisfied
@@ -82,11 +73,11 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
         return results
 
     # Run the test with the original items and segments
-    cp_solver = CpSolver(items, segments_dict, constraints, N)
+    cp_solver = CpSolver(items, segments, constraints, N)
     start_time = time.time()
     recommended_items_optimal = cp_solver.solve_optimal()
     elapsed_time_optimal = (time.time() - start_time) * 1000
-    score, constraints_satisfied = check_solution("Optimal", constraints, recommended_items_optimal[0], items, segments, segments_dict, verbose)
+    score, constraints_satisfied = check_solution("Optimal", constraints, recommended_items_optimal[0], items, segments, verbose)
     results["optimal"]["time"] = elapsed_time_optimal
     results["optimal"]["score"] = score
     results["optimal"]["constraints_satisfied"] = constraints_satisfied
@@ -94,17 +85,17 @@ def run_test_cp_preprocessing(test_name, items, segments, constraints, N, M, S, 
     start_time = time.time()
     recommended_items_first_feasible = cp_solver.solve_first_feasible()
     elapsed_time_first_feasible = (time.time() - start_time) * 1000
-    score, constraints_satisfied = check_solution("First feasible", constraints, recommended_items_first_feasible[0], items, segments, segments_dict, verbose)
+    score, constraints_satisfied = check_solution("First feasible", constraints, recommended_items_first_feasible[0], items, segments, verbose)
     results["first_feasible"]["time"] = elapsed_time_first_feasible
     results["first_feasible"]["score"] = score
     results["first_feasible"]["constraints_satisfied"] = constraints_satisfied
 
     # run permutation cp solver
-    cp_permutation_solver = PermutationCpSolver(items, segments_dict, constraints, N)
+    cp_permutation_solver = PermutationCpSolver(items, segments, constraints, N)
     start_time = time.time()
     recommended_items_optimal = cp_permutation_solver.solve_optimal()
     elapsed_time_optimal = (time.time() - start_time) * 1000
-    score, constraints_satisfied = check_solution("Optimal", constraints, recommended_items_optimal[0], items, segments, segments_dict, verbose)
+    score, constraints_satisfied = check_solution("Optimal", constraints, recommended_items_optimal[0], items, segments, verbose)
     results["permutation_optimal"]["time"] = elapsed_time_optimal
     results["permutation_optimal"]["score"] = score
     results["permutation_optimal"]["constraints_satisfied"] = constraints_satisfied
@@ -174,9 +165,9 @@ def compare_ilp_and_cp():
         results_increasing_N[N]['idfs'] = run_test_idfs(f"Test Case N:{N}, M: 100", items.copy(),
                                                         segments_dict.copy(), constraints, N)
         results_increasing_N[N]['cp'] = run_test_cp_preprocessing(f"Test Case N:{N}, M: 100", items.copy(),
-                                                                  segments_list.copy(), constraints, N, 100, 10,
+                                                                  segments_dict, constraints, N, 100, 10,
                                                                   verbose=False, preprocessing_only=True)
-        results_increasing_N[N]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, preprocessor, items.copy(), segments_dict.copy(), constraints, N, 100, [10], verbose=False)
+        results_increasing_N[N]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, preprocessor, items.copy(), segments_dict, constraints, N, 100, [10], verbose=False)
 
 
     # plot results
@@ -240,8 +231,8 @@ def compare_ilp_and_cp():
         ]
         results_increasing_M[M] = dict()
         results_increasing_M[M]['idfs'] = run_test_idfs(f"Test Case N:20, M: {M}", items.copy(),
-                                                        segments_dict.copy(), constraints, N)
-        results_increasing_M[M]['cp'] = run_test_cp_preprocessing(f"Test Case N:20, M: {M}", items, list(segments.values()), constraints, 20, M, 10, verbose=False, preprocessing_only=True)
+                                                        segments, constraints, N)
+        results_increasing_M[M]['cp'] = run_test_cp_preprocessing(f"Test Case N:20, M: {M}", items, segments, constraints, 20, M, 10, verbose=False, preprocessing_only=True)
         results_increasing_M[M]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:20, M: {M}", solver, preprocessor, items, segments, constraints, 20, M, [10], verbose=False)
 
     # plot results
@@ -287,8 +278,8 @@ def compare_ilp_and_cp():
         results_increasing_S[S] = dict()
         results_increasing_S[S]['idfs'] = run_test_idfs(f"Test Case N:{N}, M: {M}, S: {S}", items.copy(),
                                                         segments.copy(), constraints, N)
-        results_increasing_S[S]['cp'] = run_test_cp_preprocessing(f"Test Case N:{N}, M: {M}, S: {S}", items.copy(), list(segments.values()), constraints, N, M, S, verbose=False, preprocessing_only=True)
-        results_increasing_S[S]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: {M}, S: {S}", solver, preprocessor, items, segments, constraints, N, M, [10], verbose=False)
+        results_increasing_S[S]['cp'] = run_test_cp_preprocessing(f"Test Case N:{N}, M: {M}, S: {S}", items.copy(), segments, constraints, N, M, S, verbose=False, preprocessing_only=True)
+        results_increasing_S[S]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:{N}, M: {M}, S: {S}", solver, preprocessor, items, segments, constraints, N, M, [5], verbose=False)
 
     # plot results
     plt.figure(figsize=(8, 6))
@@ -297,10 +288,10 @@ def compare_ilp_and_cp():
     # plot preprocessing with first feasible
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['preprocessing_first_feasible']['time'] for S in results_increasing_S], marker='o', label='Preprocessing First Feasible', color='blue')
     # plot slicing approach in red
-    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['slicing']['10']['time'] for S in results_increasing_S], marker='o', label='Slicing (s=10)', color='red')
+    plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['ilp']['slicing']['5']['time'] for S in results_increasing_S], marker='o', label='Slicing (s=5)', color='red')
     # plot look ahead approach in cyan
     plt.plot(list(results_increasing_S.keys()),
-             [results_increasing_S[S]['ilp']['slicing_look_ahead']['10']['time'] for S in results_increasing_S],
+             [results_increasing_S[S]['ilp']['slicing_look_ahead']['5']['time'] for S in results_increasing_S],
              marker='o', label='ILP Look Ahead', color='cyan')
     # plot cp preprocessing first feasible approach in purple
     plt.plot(list(results_increasing_S.keys()), [results_increasing_S[S]['cp']['preprocessing_first_feasible']['time'] for S in results_increasing_S], marker='o', label='CP Preprocessing First Feasible', color='purple')
