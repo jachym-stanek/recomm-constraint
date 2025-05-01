@@ -4,6 +4,7 @@ from sklearn.neighbors import KNeighborsTransformer
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import pairwise_distances_chunked
+from tqdm import tqdm
 
 from src.algorithms.algorithm import Algorithm
 
@@ -113,11 +114,11 @@ class ItemKnn(Algorithm):
         gen = pairwise_distances_chunked(
             emb,
             metric='cosine',
-            working_memory=256,  # MB
+            working_memory=1024,  # MB
             reduce_func=lambda ch, s: accumulate(ch, s),
             n_jobs=-1  # all CPUs
         )
-        for _ in gen:  # consume the generator
+        for _ in tqdm(gen, desc="Computing neighborhoods", unit="chunk"):
             pass
 
         print(f"[ItemKnn] Computed item neighborhoods in {time.time() - start_time:.2f} seconds.")

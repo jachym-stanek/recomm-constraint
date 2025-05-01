@@ -65,6 +65,7 @@ class ExperimentRunner(object):
         evaluator = Evaluator(self.settings, segmentation_extractor)
         model = self._get_model_from_params_rewrite(model_params)
         model.train(self.train_dataset)
+        precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)
 
         results = []
 
@@ -80,7 +81,8 @@ class ExperimentRunner(object):
                         take_random_hidden=self.settings.recommendations['take_random_hidden'],
                         solvers=solvers,
                         slice_sizes=slice_sizes,
-                        constraints=constraints
+                        constraints=constraints,
+                        precomputed_neighborhoods=precomputed_neighborhoods
                     )
                     rewrites = {"N": N, "M": M, "constraints": constraints}
                     print(f"[ExperimentRunner] Rewrites: {rewrites} Evaluation Metrics: {metrics}")

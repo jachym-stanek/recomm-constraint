@@ -31,7 +31,7 @@ class Evaluator:
     def __init__(self, settings: Settings, segmentation_extractor: SegmentationExtractor):
         self.num_hidden = settings.recommendations['num_hidden']
         self.log_every = settings.log_every
-        self.preprocessor = ItemPreprocessor()
+        self.preprocessor = ItemPreprocessor(verbose=False)
         self.segmentation_extractor = segmentation_extractor
 
     def evaluate(
@@ -47,9 +47,11 @@ class Evaluator:
         solvers: Dict[str, Algorithm] = None,
         slice_sizes: List[int] = None,
         constraints: List[Constraint] = None,
+        precomputed_neighborhoods = None
     ):
 
-        precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)
+        if precomputed_neighborhoods is None:
+            precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)
 
         total_recall = 0.0
         total_items_recommended = set()
@@ -91,6 +93,7 @@ class Evaluator:
                 else:
                     recomms, solver_times = self._recommend_with_solvers(
                         user_idx,
+                        test_dataset.matrix,
                         model,
                         self.preprocessor,
                         self.segmentation_extractor,
@@ -139,6 +142,7 @@ class Evaluator:
     def _recommend_with_solvers(
         self,
         user_idx: int,
+        R: csr_matrix,
         model,
         preprocessor: ItemPreprocessor,
         segmentation_extractor: SegmentationExtractor,
@@ -154,31 +158,39 @@ class Evaluator:
 
         solver_times: Dict[str, float] = {}
 
-        inner_recomms, scores = model.recommend(user_idx, user_observation, list(observed_items), N=M,
-                                                precomputed_neighborhoods=precomputed_neighborhoods, test_user=True)
+        inner_recomms, scores = model.recommend(
+                        R,
+                        user_idx,
+                        user_observation,
+                        list(observed_items),
+                        N=M,
+                        precomputed_neighborhoods=precomputed_neighborhoods,
+                        test_user=True,
+                    )
 
         # we always keep the top‑N as baseline
         candidates = {item: score for item, score in zip(inner_recomms, scores)}
-        candidates_segments = segmentation_extractor.get_segments_for_recomms(candidates)
+        candidates_segments = segmentation_extractor.get_segments_dict_for_recomms(candidates)
         unconstrained_recomms: List[int] = inner_recomms[:N]
 
         for name, solver in solvers.items():
 
             if name == "ilp-slicing":
                 for s in slice_sizes:
-                    elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, s)
+                    recomms, elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, s)
                     solver_times[f"{name}-s={s}"] = elapsed
             elif name == "ilp-preprocessing":
-                elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, preprocess=True)
+                recomms, elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, preprocess=True)
                 solver_times[name] = elapsed
             else:
-                elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N)
+                recomms, elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N)
                 solver_times[name] = elapsed
 
         return unconstrained_recomms, solver_times
 
     def _solve_recomms(self, solver, preprocessor, candidates, candidates_segments, constraints, N, s=None, preprocess=False):
         start = time.perf_counter()
+        recomms = None
         try:
             if s is None and not preprocess:
                 recomms = solver.solve(candidates, candidates_segments, constraints, N)
@@ -188,4 +200,4 @@ class Evaluator:
             else:
                 recomms = solver.solve_by_slicing(preprocessor, candidates, candidates_segments, constraints, N=N, slice_size=s)
         finally:
-            return time.perf_counter() - start
+            return recomms, (time.perf_counter() - start)*1000 # in ms

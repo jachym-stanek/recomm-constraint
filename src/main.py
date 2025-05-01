@@ -8,6 +8,7 @@ from src.experiment_runner import ExperimentRunner
 from src.models import ALSModel, AnnoyALSModel
 from src.settings import Settings
 from src.segmentation import SegmentationExtractor
+from src.constraints import *
 
 # results file will have number one higher than the highest number in the existing results files
 RESULTS_FILE = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group(1)) for f in os.listdir('.') if re.match(r'results\d+\.txt', f)] + [0]) + 1) + ".txt"
@@ -15,8 +16,8 @@ RESULTS_FILE = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group
 def main():
     start_time = time.time()
     settings = Settings()
-    # settings.set_dataset_in_use('industrial_dataset1')
-    settings.set_dataset_in_use('movielens')
+    settings.set_dataset_in_use('industrial_dataset1')
+    # settings.set_dataset_in_use('movielens')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
     data_splitter.split_data()
@@ -53,16 +54,17 @@ def main():
 
 
     solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False), 'ilp-slicing': IlpSolver(verbose=False)}
-    num_recomms_values = [5, 10, 15, 20, 30, 50, 100]
+    num_recomms_values = [10, 15, 20, 30, 50, 100]
     num_candidates_values = [100, 200, 300, 400, 500, 1000]
+    item_properties = ['category_2', 'category_3', 'key_type'] # properties for industrial_dataset1
     constraint_lists = [
-
+        [
+            MinSegmentsConstraint(segmentation_property='key_type', min_segments=2, weight=0.9, window_size=5),
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=3, weight=0.9, window_size=5),
+        ]
     ]
     slice_sizes = [2, 5, 7, 8, 10, 12, 15, 16, 20]
-    experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists, slice_sizes)
-
-    # results = experiment_runner.run_experiments(num_iterations, nearest_neighbors, 'num_iterations', 'nearest_neighbors',
-    #                                             use_approximate_model=False, solver=None)
+    experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists, slice_sizes, item_properties)
 
 def measure_changes_with_diversity_constraints():
     start_time = time.time()

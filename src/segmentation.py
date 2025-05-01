@@ -96,17 +96,17 @@ class SegmentationExtractor:
             if isinstance(property_value, list):
                 # Add item to each segment corresponding to the list elements
                 for value in property_value:
-                    segment_value_id = str(value) + '-' + segmentation_property # needed to make unigue segment identifier
-                    if segment_value_id not in segments:
-                        segments[segment_value_id] = Segment(segment_id=value, segmentation_property=segmentation_property)
-                    segments[segment_value_id].add(item_idx)
+                    segment_label = str(value) + '-' + segmentation_property # needed to make unigue segment identifier
+                    if segment_label not in segments:
+                        segments[segment_label] = Segment(segment_id=value, segmentation_property=segmentation_property)
+                    segments[segment_label].add(item_idx)
             else:
                 # Add item to the segment for the single value
-                segment_value_id = str(property_value) + '-' + segmentation_property
-                if segment_value_id not in segments:
-                    segments[segment_value_id] = Segment(segment_id=property_value,
+                segment_label = str(property_value) + '-' + segmentation_property
+                if segment_label not in segments:
+                    segments[segment_label] = Segment(segment_id=property_value,
                                                        segmentation_property=segmentation_property)
-                segments[segment_value_id].add(item_idx)
+                segments[segment_label].add(item_idx)
 
         return segments
 
@@ -132,7 +132,7 @@ class SegmentationExtractor:
                     segment_items.append(item)
             if len(segment_items) > 0:
                 # create new segment with only the items that are in the recommendations and using item rating matrix index instead of item id
-                recomms_segments[segment.segment_id] = (Segment(segment.segment_id, segment.segmentation_property, *segment_items))
+                recomms_segments[segment.label] = (Segment(segment.segment_id, segment.segmentation_property, *segment_items))
         return recomms_segments
 
     def get_segments_for_recomms(self, recomms, translate_idx2id=False):
