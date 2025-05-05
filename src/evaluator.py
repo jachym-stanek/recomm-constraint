@@ -10,21 +10,34 @@ from src.algorithms.algorithm import Algorithm
 from src.constraints import Constraint
 from src.segmentation import SegmentationExtractor
 from src.settings import Settings
+from src.util import total_satisfaction
 
 
 @dataclass
 class SolverResults:
     """Keeps track of cumulative time for a single solver"""
     total_time: float = 0.0
+    total_constraint_satisfaction: float = 0.0
+    total_score: float = 0.0
     calls: int = 0
 
-    def add(self, elapsed: float) -> None:
+    def add(self, elapsed: float, satisfaction_score: float, score: float) -> None:
         self.total_time += elapsed
         self.calls += 1
+        self.total_constraint_satisfaction += satisfaction_score
+        self.total_score += score
 
     @property
     def avg_time(self) -> float:
         return self.total_time / self.calls if self.calls else 0.0
+
+    @property
+    def avg_constraint_satisfaction(self) -> float:
+        return self.total_constraint_satisfaction / self.calls if self.calls else 0.0
+
+    @property
+    def avg_score(self) -> float:
+        return self.total_score / self.calls if self.calls else 0.0
 
 
 class Evaluator:
@@ -91,7 +104,7 @@ class Evaluator:
                         test_user=True,
                     )
                 else:
-                    recomms, solver_times = self._recommend_with_solvers(
+                    recomms, solver_metrics = self._recommend_with_solvers(
                         user_idx,
                         test_dataset.matrix,
                         model,
@@ -106,10 +119,8 @@ class Evaluator:
                         constraints=constraints,
                         slice_sizes=slice_sizes,
                     )
-                    for name, elapsed in solver_times.items():
-                        if name not in solver_stats:
-                            solver_stats[name] = SolverResults()
-                        solver_stats[name].add(elapsed)
+                    self._proccess_solver_metrics(solver_stats, solver_metrics)
+
 
                 hit = int(hidden_item in recomms)
                 recalls.append(hit)
@@ -154,9 +165,9 @@ class Evaluator:
         M: int,
         constraints: List[Constraint],
         slice_sizes: List[int],
-    ) -> Tuple[List[int], Dict[str, float]]:
+    ) -> Tuple[List[int], Dict[str, dict]]:
 
-        solver_times: Dict[str, float] = {}
+        solver_metrics: Dict[str, dict] = {}
 
         inner_recomms, scores = model.recommend(
                         R,
@@ -177,27 +188,38 @@ class Evaluator:
 
             if name == "ilp-slicing":
                 for s in slice_sizes:
-                    recomms, elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, s)
-                    solver_times[f"{name}-s={s}"] = elapsed
+                    recomms, metrics = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, s)
+                    solver_metrics[f"{name}-s={s}"] = metrics
             elif name == "ilp-preprocessing":
-                recomms, elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, preprocess=True)
-                solver_times[name] = elapsed
+                recomms, metrics = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, preprocess=True)
+                solver_metrics[name] = metrics
             else:
-                recomms, elapsed = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N)
-                solver_times[name] = elapsed
+                recomms, metrics = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N)
+                solver_metrics[name] = metrics
 
-        return unconstrained_recomms, solver_times
+        return unconstrained_recomms, solver_metrics
 
     def _solve_recomms(self, solver, preprocessor, candidates, candidates_segments, constraints, N, s=None, preprocess=False):
         start = time.perf_counter()
-        recomms = None
-        try:
-            if s is None and not preprocess:
-                recomms = solver.solve(candidates, candidates_segments, constraints, N)
-            elif s is None and preprocess:
-                candidates = preprocessor.preprocess_items(candidates, candidates_segments, constraints, N)
-                recomms = solver.solve(candidates, candidates_segments, constraints, N)
-            else:
-                recomms = solver.solve_by_slicing(preprocessor, candidates, candidates_segments, constraints, N=N, slice_size=s)
-        finally:
-            return recomms, (time.perf_counter() - start)*1000 # in ms
+        if s is None and not preprocess:
+            recomms = solver.solve(candidates, candidates_segments, constraints, N)
+        elif s is None and preprocess:
+            candidates = preprocessor.preprocess_items(candidates, candidates_segments, constraints, N)
+            recomms = solver.solve(candidates, candidates_segments, constraints, N)
+        else:
+            recomms = solver.solve_by_slicing(preprocessor, candidates, candidates_segments, constraints, N=N, slice_size=s)
+        elapsed = (time.perf_counter() - start)*1000 # in ms
+        score = sum(candidates[item] for item in recomms)
+        constraint_satisfaction_score = total_satisfaction(recomms, candidates, candidates_segments, constraints)
+        metrics = {
+            'time': elapsed,
+            'score': score,
+            'constraint_satisfaction_score': constraint_satisfaction_score,
+        }
+        return recomms, metrics
+
+    def _proccess_solver_metrics(self, solver_stats: Dict[str, SolverResults], solver_metrics: Dict[str, dict]) -> None:
+        for name, metrics in solver_metrics.items():
+            if name not in solver_stats:
+                solver_stats[name] = SolverResults()
+            solver_stats[name].add(metrics['time'], metrics['constraint_satisfaction_score'], metrics['score'])
