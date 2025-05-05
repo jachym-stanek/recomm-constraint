@@ -55,6 +55,12 @@ class IlpSolver(Algorithm):
 
             slice_result = self.solve(slice_candidates, slice_segments, slice_constraints, slice_N, already_recommended_items)
 
+            if slice_result is None:
+                if self.verbose:
+                    print(f"[{self.name}] No solution found for the slice, returning empty solution.")
+                final_result = None
+                break
+
             # take only half
             if look_ahead:
                 taken_until = min(slice_size, len(slice_result))
