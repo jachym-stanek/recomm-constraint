@@ -19,7 +19,7 @@ def check_solution(test_name, constraints, recommended_items, items, segments, u
                 all_constraints_satisfied = False
                 print(f"Constraint {constraint} is not satisfied.")
         if all_constraints_satisfied or using_soft_constraints:
-            print(f"All constraints are satisfied for standard test.")
+            print(f"All constraints are satisfied for test {test_name}.")
         for position, item_id in recommended_items.items():
             score = items[item_id]
             total_score += score
@@ -34,3 +34,16 @@ def check_solution(test_name, constraints, recommended_items, items, segments, u
 
 def remove_already_recommended_items_from_candidates(already_recommended, items):
     return {item_id: score for item_id, score in items.items() if item_id not in already_recommended}
+
+def total_satisfaction(solution, items, segments, constraints, already_recommended_items=None):
+    satisfaction = 0
+    weight = 0
+
+    for constraint in constraints:
+        s = constraint.satisfaction_ratio(solution, items, segments, already_recommended_items)
+        if s is not None:
+            satisfaction += s * constraint.weight
+            weight += constraint.weight
+    if weight > 0:
+        satisfaction /= weight
+    return satisfaction

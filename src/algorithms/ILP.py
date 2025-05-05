@@ -201,8 +201,8 @@ class IlpSolver(Algorithm):
             name="TotalItems"
         )
 
-        # Penalty scaling factor K (total possible score)
-        K = sum(items.values())
+        # Penalty scaling factor K (sum of N most scoring items = max possible score)
+        K = sum(sorted(items.values(), reverse=True)[:N])
 
         # Process each constraint in the constraints list
         for constraint in constraints:

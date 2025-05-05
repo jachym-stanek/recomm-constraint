@@ -19,6 +19,13 @@ class Constraint:
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
         raise NotImplementedError("Must implement check_constraint method.")
 
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        """
+        Return value in [0, 1] reflecting how well solution meets the constraint
+        1 means fully satisfied, 0 worst violation
+        """
+        raise NotImplementedError("Must implement satisfaction_ratio method.")
+
 
 class Constraint2D:
     def __init__(self, name, weight):
@@ -131,6 +138,31 @@ class MinItemsPerSegmentConstraint(Constraint):
                     return False
         return True
 
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        if isinstance(solution, dict):
+            solution = list(solution.values())
+
+        segment_items = segments[self.label]
+        N = len(solution)
+        worst_deficit = 0
+
+        # sliding windows over the recommendation
+        for i in range(N - self.window_size + 1):
+            window = solution[i: i + self.window_size]
+            cnt = sum(1 for it in window if it in segment_items)
+            worst_deficit = max(worst_deficit, max(0, self.min_items - cnt))
+
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items))
+            for i in range(counter_start, counter_end):
+                recom_window = solution[: self.window_size - i]
+                already_cnt = sum(1 for it in already_recommended_items[-i:] if it in segment_items)
+                cnt = sum(1 for it in recom_window if it in segment_items) + already_cnt
+                worst_deficit = max(worst_deficit, max(0, self.min_items - cnt))
+
+        return _linear_ratio(worst_deficit, self.min_items)
+
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, property={self.property}, min_items={self.min_items}, window_size={self.window_size})"
 
@@ -229,6 +261,30 @@ class MaxItemsPerSegmentConstraint(Constraint):
                     return False
         return True
 
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        if isinstance(solution, dict):
+            solution = list(solution.values())
+
+        segment_items = segments[self.label]
+        N = len(solution)
+        worst_excess = 0
+
+        for i in range(N - self.window_size + 1):
+            window = solution[i: i + self.window_size]
+            cnt = sum(1 for it in window if it in segment_items)
+            worst_excess = max(worst_excess, max(0, cnt - self.max_items))
+
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items))
+            for i in range(counter_start, counter_end):
+                recom_window = solution[: self.window_size - i]
+                already_cnt = sum(1 for it in already_recommended_items[-i:] if it in segment_items)
+                cnt = sum(1 for it in recom_window if it in segment_items) + already_cnt
+                worst_excess = max(worst_excess, max(0, cnt - self.max_items))
+
+        return _linear_ratio(worst_excess, self.max_items)
+
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, property={self.property}, max_items={self.max_items}, window_size={self.window_size})"
 
@@ -274,6 +330,9 @@ class ItemFromSegmentAtPositionConstraint(Constraint):
             item_id = solution[self.position-1] # position is 1-indexed
         return item_id in segment_items
 
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        return 1.0 if self.check_constraint(solution, items, segments, already_recommended_items) else 0.0
+
     def __repr__(self):
         return f"{self.name}(segment_id={self.segment_id}, property={self.property}, position={self.position})"
 
@@ -311,6 +370,9 @@ class ItemAtPositionConstraint(Constraint):
             return solution.get(self.position) == self.item_id
         else:
             return solution[self.position-1] == self.item_id
+
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        return 1.0 if self.check_constraint(solution, items, segments, already_recommended_items) else 0.0
 
     def __repr__(self):
         return f"{self.name}(item_id={self.item_id}, position={self.position})"
@@ -362,7 +424,14 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
                 model.Add(sum(b_vars) >= self.min_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        if not self.constraints:
+            self.constraints = self.sub_constraints_from_segments(segments)
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
+
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        if not self.constraints:
+            self.constraints = self.sub_constraints_from_segments(segments)
+        return min(c.satisfaction_ratio(solution, items, segments, already_recommended_items) for c in self.constraints)
 
     def sub_constraints_from_segments(self, segments):
         constraints = []
@@ -424,7 +493,14 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
                 model.Add(sum(b_vars) <= self.max_items)
 
     def check_constraint(self, solution, items, segments, already_recommended_items=None):
+        if not self.constraints:
+            self.constraints = self.sub_constraints_from_segments(segments)
         return all(constraint.check_constraint(solution, items, segments, already_recommended_items) for constraint in self.constraints)
+
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        if not self.constraints:
+            self.constraints = self.sub_constraints_from_segments(segments)
+        return min(c.satisfaction_ratio(solution, items, segments, already_recommended_items) for c in self.constraints)
 
     def sub_constraints_from_segments(self, segments):
         constraints = []
@@ -455,14 +531,11 @@ class MinSegmentsConstraint(Constraint):
         self.verbose = verbose
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        segment_ids = set()
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
-                segment_ids.add(segment_id)
+        segment_labels = [segment_label for segment_label, s in segments.items() if s.property == self.segmentation_property]
 
         # binary variable for each segment and window y_{segment_id, i} = 1 if segment_id is represented in the window
         window_starts = range(N - self.window_size + 1)
-        y = model.addVars([row], segment_ids, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
+        y = model.addVars([row], segment_labels, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
 
         if self.weight < 1.0:
             s = _add_slack_variable(model, K, self.weight, self.name)
@@ -471,30 +544,30 @@ class MinSegmentsConstraint(Constraint):
             window = positions[i:i + self.window_size]
 
             # set constraints on y (ensure y=1 if any segment item is in the window and y=0 otherwise)
-            for segment_id in segment_ids:
-                segment_items = segments[segment_id]
+            for segment_label in segment_labels:
+                segment_items = segments[segment_label]
                 model.addConstr(
-                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in items if item_id in segment_items for p in window),
-                    name=f"y_{self.name}_{row}_{segment_id}_{i}"
+                    y[row, segment_label, i] <= quicksum(x[item_id, row, p] for item_id in items if item_id in segment_items for p in window),
+                    name=f"y_{self.name}_{row}_{segment_label}_{i}"
                 )
                 for item_id in items:
                     if item_id in segment_items:
                         for p in window:
                             model.addConstr(
-                                y[row, segment_id, i] >= x[item_id, row, p],
-                                name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
+                                y[row, segment_label, i] >= x[item_id, row, p],
+                                name=f"y_{self.name}_{row}_{segment_label}_{i}_{item_id}"
                             )
 
             # constraint on the number of segments in the window
             if self.weight < 1.0:
                 model.addConstr(
-                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) + s >= self.min_segments,
+                    quicksum(y[row, segment_label, i] for segment_label in segment_labels) + s >= self.min_segments,
                     name=f"{self.name}_{i}"
                 )
             else:
                 # Hard constraint
                 model.addConstr(
-                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) >= self.min_segments,
+                    quicksum(y[row, segment_label, i] for segment_label in segment_labels) >= self.min_segments,
                     name=f"{self.name}_{i}"
                 )
 
@@ -504,37 +577,37 @@ class MinSegmentsConstraint(Constraint):
             for i in range(counter_start, counter_end):
                 recomm_positions = positions[:self.window_size - i]
                 constant = {}
-                for segment_id in segment_ids:
+                for segment_label in segment_labels:
                     already_present = 1 if any(
-                        item_id in segments[segment_id] for item_id in already_recommended_items[-i:]) else 0
-                    constant[segment_id] = already_present
+                        item_id in segments[segment_label] for item_id in already_recommended_items[-i:]) else 0
+                    constant[segment_label] = already_present
                 const_sum = sum(constant.values())
                 new_y_vars = {}
-                for segment_id in segment_ids:
-                    if constant[segment_id] == 0:
-                        new_y_vars[segment_id] = model.addVar(vtype=GRB.BINARY,
-                                                              name=f"y_{self.name}_already_{segment_id}_{i}")
+                for segment_label in segment_labels:
+                    if constant[segment_label] == 0:
+                        new_y_vars[segment_label] = model.addVar(vtype=GRB.BINARY,
+                                                              name=f"y_{self.name}_already_{segment_label}_{i}")
                         model.addConstr(
-                            new_y_vars[segment_id] <= quicksum(
-                                x[item_id, row, p] for item_id in items if item_id in segments[segment_id] for p in recomm_positions),
-                            name=f"y_{self.name}_already_constr1_{segment_id}_{i}"
+                            new_y_vars[segment_label] <= quicksum(
+                                x[item_id, row, p] for item_id in items if item_id in segments[segment_label] for p in recomm_positions),
+                            name=f"y_{self.name}_already_constr1_{segment_label}_{i}"
                         )
-                        for item_id in segments[segment_id]:
+                        for item_id in segments[segment_label]:
                             if item_id in items:
                                 for p in recomm_positions:
                                     model.addConstr(
-                                        new_y_vars[segment_id] >= x[item_id, row, p],
-                                        name=f"y_{self.name}_already_constr2_{segment_id}_{i}_{item_id}"
+                                        new_y_vars[segment_label] >= x[item_id, row, p],
+                                        name=f"y_{self.name}_already_constr2_{segment_label}_{i}_{item_id}"
                                     )
                 # For the effective window, the count is constant (from already recommended items) plus contributions from the new part.
                 if self.weight < 1.0:
                     model.addConstr(
-                        quicksum(new_y_vars[segment_id] for segment_id in new_y_vars) + const_sum + s >= self.min_segments,
+                        quicksum(new_y_vars[segment_label] for segment_label in new_y_vars) + const_sum + s >= self.min_segments,
                         name=f"{self.name}_already_{i}"
                     )
                 else:
                     model.addConstr(
-                        quicksum(new_y_vars[segment_id] for segment_id in new_y_vars) + const_sum >= self.min_segments,
+                        quicksum(new_y_vars[segment_label] for segment_label in new_y_vars) + const_sum >= self.min_segments,
                         name=f"{self.name}_already_{i}"
                     )
 
@@ -572,19 +645,12 @@ class MinSegmentsConstraint(Constraint):
         if type(solution) is dict:
             solution = list(solution.values())
 
-        segment_ids = set()
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
-                segment_ids.add(segment_id)
+        segment_labels = [segment_label for segment_label, s in segments.items() if s.property == self.segmentation_property]
 
         N = len(solution)
         for i in range(N - self.window_size + 1):
             window = solution[i:i + self.window_size]
-            segments_in_window = set()
-            for item_id in window:
-                for segment_id in segment_ids:
-                    if item_id in segments[segment_id]:
-                        segments_in_window.add(segment_id)
+            segments_in_window = _segments_in_window(window, segments, segment_labels)
             if len(segments_in_window) < self.min_segments:
                 return False
 
@@ -594,19 +660,36 @@ class MinSegmentsConstraint(Constraint):
             for i in range(counter_start, counter_end):
                 recomm_positions = solution[:self.window_size - i]
                 already_recommended_item_in_window = already_recommended_items[-i:]
-                segments_in_window = set()
-                for item_id in recomm_positions:
-                    for segment_id in segment_ids:
-                        if item_id in segments[segment_id]:
-                            segments_in_window.add(segment_id)
-                for item_id in already_recommended_item_in_window:
-                    for segment_id in segment_ids:
-                        if item_id in segments[segment_id]:
-                            segments_in_window.add(segment_id)
+                combined_window = recomm_positions + already_recommended_item_in_window
+                segments_in_window = _segments_in_window(combined_window, segments, segment_labels)
                 if len(segments_in_window) < self.min_segments:
                     return False
 
         return True
+
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        if isinstance(solution, dict):
+            solution = list(solution.values())
+
+        segment_labels = [segment_label for segment_label, s in segments.items() if s.property == self.segmentation_property]
+        N = len(solution)
+        worst_deficit = 0
+
+        for i in range(N - self.window_size + 1):
+            window = solution[i: i + self.window_size]
+            deficit = self.min_segments - len(_segments_in_window(window, segments, segment_labels))
+            worst_deficit = max(worst_deficit, max(0, deficit))
+
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items)) + 1
+            for i in range(counter_start, counter_end):
+                recom_window = solution[: self.window_size - i]
+                combined = recom_window + already_recommended_items[-i:]
+                deficit = self.min_segments - len(_segments_in_window(combined, segments, segment_labels))
+                worst_deficit = max(worst_deficit, max(0, deficit))
+
+        return _linear_ratio(worst_deficit, self.min_segments)
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, min_segments={self.min_segments}, window_size={self.window_size})"
@@ -627,14 +710,11 @@ class MaxSegmentsConstraint(Constraint):
         self.verbose = verbose
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
-        segment_ids = set()
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
-                segment_ids.add(segment_id)
+        segment_labels = [segment_label for segment_label, s in segments.items() if s.property == self.segmentation_property]
 
         # binary variable for each segment and window y_{segment_id, i} = 1 if segment_id is represented in the window
         window_starts = range(N - self.window_size + 1)
-        y = model.addVars([row], segment_ids, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
+        y = model.addVars([row], segment_labels, window_starts, vtype=GRB.BINARY, name=f"y_{self.name}")
 
         if self.weight < 1.0:
             s = _add_slack_variable(model, K, self.weight, self.name)
@@ -643,30 +723,30 @@ class MaxSegmentsConstraint(Constraint):
             window = positions[i:i + self.window_size]
 
             # set constraints on y (ensure y=1 if any segment item is in the window and y=0 otherwise)
-            for segment_id in segment_ids:
-                segment_items = segments[segment_id]
+            for segment_label in segment_labels:
+                segment_items = segments[segment_label]
                 model.addConstr(
-                    y[row, segment_id, i] <= quicksum(x[item_id, row, p] for item_id in items if item_id in segment_items for p in window),
-                    name=f"y_{self.name}_{row}_{segment_id}_{i}"
+                    y[row, segment_label, i] <= quicksum(x[item_id, row, p] for item_id in items if item_id in segment_items for p in window),
+                    name=f"y_{self.name}_{row}_{segment_label}_{i}"
                 )
                 for item_id in items:
                     if item_id in segment_items:
                         for p in window:
                             model.addConstr(
-                                y[row, segment_id, i] >= x[item_id, row, p],
-                                name=f"y_{self.name}_{row}_{segment_id}_{i}_{item_id}"
+                                y[row, segment_label, i] >= x[item_id, row, p],
+                                name=f"y_{self.name}_{row}_{segment_label}_{i}_{item_id}"
                             )
 
             # constraint on the number of segments in the window
             if self.weight < 1.0:
                 model.addConstr(
-                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) - s <= self.max_segments,
+                    quicksum(y[row, segment_label, i] for segment_label in segment_labels) - s <= self.max_segments,
                     name=f"{self.name}_{i}"
                 )
             else:
                 # Hard constraint
                 model.addConstr(
-                    quicksum(y[row, segment_id, i] for segment_id in segment_ids) <= self.max_segments,
+                    quicksum(y[row, segment_label, i] for segment_label in segment_labels) <= self.max_segments,
                     name=f"{self.name}_{i}"
                 )
 
@@ -676,27 +756,27 @@ class MaxSegmentsConstraint(Constraint):
             for i in range(counter_start, counter_end):
                 recomm_positions = positions[:self.window_size - i]
                 constant = {}
-                for segment_id in segment_ids:
+                for segment_label in segment_labels:
                     already_present = 1 if any(
-                        item_id in segments[segment_id] for item_id in already_recommended_items[-i:]) else 0
-                    constant[segment_id] = already_present
+                        item_id in segments[segment_label] for item_id in already_recommended_items[-i:]) else 0
+                    constant[segment_label] = already_present
                 const_sum = sum(constant.values())
                 new_y_vars = {}
-                for segment_id in segment_ids:
-                    if constant[segment_id] == 0: # only create a new var if the segment is not already present
-                        new_y_vars[segment_id] = model.addVar(vtype=GRB.BINARY,
-                                                              name=f"y_{self.name}_already_{segment_id}_{i}")
+                for segment_label in segment_labels:
+                    if constant[segment_label] == 0: # only create a new var if the segment is not already present
+                        new_y_vars[segment_label] = model.addVar(vtype=GRB.BINARY,
+                                                              name=f"y_{self.name}_already_{segment_label}_{i}")
                         model.addConstr(
-                            new_y_vars[segment_id] <= quicksum(
-                                x[item_id, row, p] for item_id in items if item_id in segments[segment_id] for p in recomm_positions),
-                            name=f"y_{self.name}_already_constr1_{segment_id}_{i}"
+                            new_y_vars[segment_label] <= quicksum(
+                                x[item_id, row, p] for item_id in items if item_id in segments[segment_label] for p in recomm_positions),
+                            name=f"y_{self.name}_already_constr1_{segment_label}_{i}"
                         )
-                        for item_id in segments[segment_id]:
+                        for item_id in segments[segment_label]:
                             if item_id in items:
                                 for p in recomm_positions:
                                     model.addConstr(
-                                        new_y_vars[segment_id] >= x[item_id, row, p],
-                                        name=f"y_{self.name}_already_constr2_{segment_id}_{i}_{item_id}"
+                                        new_y_vars[segment_label] >= x[item_id, row, p],
+                                        name=f"y_{self.name}_already_constr2_{segment_label}_{i}_{item_id}"
                                     )
                 # For the effective window, the count is constant (from already recommended items) plus contributions from the new part.
                 if self.weight < 1.0:
@@ -742,19 +822,12 @@ class MaxSegmentsConstraint(Constraint):
         if type(solution) is dict:
             solution = list(solution.values())
 
-        segment_ids = set()
-        for segment_id in segments:
-            if segments[segment_id].property == self.segmentation_property:
-                segment_ids.add(segment_id)
+        segment_labels = [segment_label for segment_label, s in segments.items() if s.property == self.segmentation_property]
 
         N = len(solution)
         for i in range(N - self.window_size + 1):
             window = solution[i:i + self.window_size]
-            segments_in_window = set()
-            for item_id in window:
-                for segment_id in segment_ids:
-                    if item_id in segments[segment_id]:
-                        segments_in_window.add(segment_id)
+            segments_in_window = _segments_in_window(window, segments, segment_labels)
             if len(segments_in_window) > self.max_segments:
                 return False
 
@@ -764,19 +837,36 @@ class MaxSegmentsConstraint(Constraint):
             for i in range(counter_start, counter_end):
                 recomm_positions = solution[:self.window_size - i]
                 already_recommended_item_in_window = already_recommended_items[-i:]
-                segments_in_window = set()
-                for item_id in recomm_positions:
-                    for segment_id in segment_ids:
-                        if item_id in segments[segment_id]:
-                            segments_in_window.add(segment_id)
-                for item_id in already_recommended_item_in_window:
-                    for segment_id in segment_ids:
-                        if item_id in segments[segment_id]:
-                            segments_in_window.add(segment_id)
+                combined_window = recomm_positions + already_recommended_item_in_window
+                segments_in_window = _segments_in_window(combined_window, segments, segment_labels)
                 if len(segments_in_window) > self.max_segments:
                     return False
 
         return True
+
+    def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
+        if isinstance(solution, dict):
+            solution = list(solution.values())
+
+        segment_labels = [segment_label for segment_label, s in segments.items() if s.property == self.segmentation_property]
+        N = len(solution)
+        worst_excess = 0
+
+        for i in range(N - self.window_size + 1):
+            window = solution[i: i + self.window_size]
+            excess = len(_segments_in_window(window, segments, segment_labels)) - self.max_segments
+            worst_excess = max(worst_excess, max(0, excess))
+
+        if already_recommended_items:
+            counter_start = self.window_size - N if self.window_size > N else 1
+            counter_end = min(self.window_size, len(already_recommended_items)) + 1
+            for i in range(counter_start, counter_end):
+                recom_window = solution[: self.window_size - i]
+                combined = recom_window + already_recommended_items[-i:]
+                excess = len(_segments_in_window(combined, segments, segment_labels)) - self.max_segments
+                worst_excess = max(worst_excess, max(0, excess))
+
+        return _linear_ratio(worst_excess, self.max_segments)
 
     def __repr__(self):
         return f"{self.name}(segmentation_property={self.segmentation_property}, max_segments={self.max_segments}, window_size={self.window_size})"
@@ -830,3 +920,19 @@ def _add_slack_variable(model, K, weight, name):
     model._penalties.append((s, penalty_coeff))
 
     return s
+
+
+# Map an integer deficit/excess in the range [0 bound] onto [0,1]
+def _linear_ratio(deficit: int, bound: int) -> float:
+    if bound <= 0:
+        return 1.0  # degenerate, treat as always satisfied
+    return max(0.0, 1.0 - deficit / bound)
+
+
+def _segments_in_window(window, segments, segment_labels):
+    segs = set()
+    for item in window:
+        for s in segment_labels:
+            if item in segments[s]:
+                segs.add(s)
+    return segs

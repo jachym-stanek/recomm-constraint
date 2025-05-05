@@ -1624,6 +1624,55 @@ def ILP_num_threads_test():
         print(f"Score: {score}")
         print(f"Time elapsed: {time_elapsed:.4f} ms")
 
+# test prioritizing constraints with higher weights
+def soft_constraints():
+    solver = IlpSolver(verbose=True)
+
+    # Test case 1 - satisfiable constraints
+    print("==== Test case 1 ====")
+    items = {f'item-{i}': i for i in range(1, 101)}
+    segment1 = Segment('segment1', 'test-prop1', *list(items.keys())[50:])
+    segment2 = Segment('segment2', 'test-prop1', *list(items.keys())[25:75])
+    segment3 = Segment('segment3', 'test-prop2', *list(items.keys())[::2])
+    segment4 = Segment('segment4', 'test-prop2', *list(items.keys())[1::2])
+    segments = {f"{seg.id}-{seg.property}": seg for seg in [segment1, segment2, segment3, segment4]}
+    N = 10
+    constraints = [
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop1', min_items=1, weight=0.9, window_size=5),
+        MaxSegmentsConstraint(segmentation_property='test-prop2', max_segments=1, weight=0.2, window_size=7),
+    ]
+    solution = solver.solve(items, segments, constraints, N)
+    print(f"Solution: {solution}")
+    print(f"Score: {sum([items[item_id] for item_id in solution.values()])}")
+    print(f"Constraint satisfaction score: {total_satisfaction(solution, items, segments, constraints)}")
+    for constraint in constraints:
+        print(f"Constraint {constraint}, constraints satisfied: {constraint.check_constraint(solution, items, segments)}, satisfaction score: {constraint.satisfaction_ratio(solution, items, segments)}")
+
+    # Test case 2 - unsatisfiable constraints, prefer one constraint over the other
+    print("==== Test case 2 ====")
+    constraints = [
+        GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop1', max_items=1, weight=0.9, window_size=10),
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop1', min_items=2, weight=0.2, window_size=10),
+    ]
+    solution = solver.solve(items, segments, constraints, N)
+    print(f"Solution: {solution}")
+    print(f"Score: {sum([items[item_id] for item_id in solution.values()])}")
+    print(f"Constraint satisfaction score: {total_satisfaction(solution, items, segments, constraints)}")
+    for constraint in constraints:
+        print(f"Constraint {constraint}, constraints satisfied: {constraint.check_constraint(solution, items, segments)}, satisfaction score: {constraint.satisfaction_ratio(solution, items, segments)}")
+
+    # Test case 3 - unsatisfiable constraints with low weights -> prefer high scoring items over constraints
+    print("==== Test case 3 ====")
+    constraints = [
+        GlobalMaxItemsPerSegmentConstraint(segmentation_property='test-prop1', max_items=1, weight=0.09, window_size=10),
+        GlobalMinItemsPerSegmentConstraint(segmentation_property='test-prop1', min_items=2, weight=0.02, window_size=10),
+    ]
+    solution = solver.solve(items, segments, constraints, N)
+    print(f"Solution: {solution}")
+    print(f"Score: {sum([items[item_id] for item_id in solution.values()])}")
+    print(f"Constraint satisfaction score: {total_satisfaction(solution, items, segments, constraints)}")
+    for constraint in constraints:
+        print(f"Constraint {constraint}, constraints satisfied: {constraint.check_constraint(solution, items, segments)}, satisfaction score: {constraint.satisfaction_ratio(solution, items, segments)}")
 
 
 if __name__ == "__main__":
@@ -1647,4 +1696,5 @@ if __name__ == "__main__":
     # compare_ILP_approaches_speed()
     # ilp_return_first_feasible_test()
     # ILP_timeout_test()
-    ILP_num_threads_test()
+    # ILP_num_threads_test()
+    soft_constraints()
