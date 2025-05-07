@@ -88,7 +88,7 @@ class ExperimentRunner(object):
                         constraints=constraints,
                         precomputed_neighborhoods=precomputed_neighborhoods
                     )
-                    rewrites = {"N": N, "M": M, "constraints": constraints}
+                    rewrites = {"N": N, "M": M, "constraints": [str(c) for c in constraints]}
                     print(f"[ExperimentRunner] Rewrites: {rewrites} Evaluation Metrics: {metrics}")
                     self._save_metrics_to_file(rewrites, metrics)
                     results.append((rewrites, metrics))
