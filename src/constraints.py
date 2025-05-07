@@ -394,6 +394,10 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
         self.verbose = verbose
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
+        # ensure that the constraints are empty
+        if self.constraints:
+            self.constraints = []
+
         # create MinItemsPerSegmentConstraint for each segment
         for segment_label in segments:
             if segments[segment_label].property == self.segmentation_property:
@@ -463,6 +467,10 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
         self.verbose = verbose
 
     def add_to_ilp_model(self, model, x, items, segments, row, positions, N, K, already_recommended_items=None):
+        # ensure that the constraints are empty
+        if self.constraints:
+            self.constraints = []
+
         # create MaxItemsPerSegmentConstraint for each segment
         for segment_label in segments:
             if segments[segment_label].property == self.segmentation_property:

@@ -71,6 +71,8 @@ class ExperimentRunner(object):
 
         for N in num_recomms_values:
             for M in num_candidates_values:
+                if N >= M:
+                    continue
                 for constraints in constraint_lists:
                     metrics = evaluator.evaluate(
                         train_dataset=self.train_dataset,

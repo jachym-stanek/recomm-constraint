@@ -36,6 +36,9 @@ def remove_already_recommended_items_from_candidates(already_recommended, items)
     return {item_id: score for item_id, score in items.items() if item_id not in already_recommended}
 
 def total_satisfaction(solution, items, segments, constraints, already_recommended_items=None):
+    if solution is None:
+        return 0
+
     satisfaction = 0
     weight = 0
 

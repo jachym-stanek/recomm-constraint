@@ -10,7 +10,7 @@ class ConstraintGenerator:
     def __init__(self):
         pass
 
-    def generate_random_constraints(self, num_constraints, num_recommendations, items=None, segment_ids=None,
+    def generate_random_constraints(self, num_constraints, num_recommendations, items=None, segments=None,
                                     segmentation_properties=None, weight_type="mixed", exclude_specific=None):
         """
         Generate n random 1D constraints with random parameters.
@@ -25,8 +25,8 @@ class ConstraintGenerator:
         """
         if items is None:
             items = []
-        if segment_ids is None:
-            segment_ids = []
+        if segments is None:
+            segments = dict()
         if segmentation_properties is None:
             segmentation_properties = []
 
@@ -67,9 +67,9 @@ class ConstraintGenerator:
                 if random.random() < 0.5:
                     weight_val = 1.0
                 else:
-                    weight_val = random.uniform(0.0, 1.0)
+                    weight_val = random.uniform(0.1, 1.0)
             elif weight_type == "soft":
-                weight_val = random.uniform(0.0, 1.0)
+                weight_val = random.uniform(0.1, 0.9)
             elif weight_type == "hard":
                 pass
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     segment_ids = [f'segment-{i}' for i in range(1, 4)]
     segmentation_properties = ['prop1', 'prop2']
     generator = ConstraintGenerator()
-    constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segment_ids,
+    constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segments,
                                                         segmentation_properties)
     print(f"Generated {num_constraints} random constraints:")
     for c in constraints:

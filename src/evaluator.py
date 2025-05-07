@@ -17,18 +17,32 @@ from src.util import total_satisfaction
 class SolverResults:
     """Keeps track of cumulative time for a single solver"""
     total_time: float = 0.0
+    total_time_empty: float = 0.0
     total_constraint_satisfaction: float = 0.0
     total_score: float = 0.0
     calls: int = 0
+    calls_empty: int = 0
 
-    def add(self, elapsed: float, satisfaction_score: float, score: float) -> None:
-        self.total_time += elapsed
-        self.calls += 1
-        self.total_constraint_satisfaction += satisfaction_score
-        self.total_score += score
+    def add(self, elapsed: float, satisfaction_score: float, score: float, empty: bool=False) -> None:
+        if empty:
+            self.total_time_empty += elapsed
+            self.calls_empty += 1
+        else:
+            self.total_time += elapsed
+            self.calls += 1
+            self.total_constraint_satisfaction += satisfaction_score
+            self.total_score += score
 
     @property
     def avg_time(self) -> float:
+        return (self.total_time + self.total_time_empty) / (self.calls + self.calls_empty) if self.calls else 0.0
+
+    @property
+    def avg_time_empty(self) -> float:
+        return self.total_time_empty / self.calls_empty if self.calls_empty else 0.0
+
+    @property
+    def avg_time_non_empty(self) -> float:
         return self.total_time / self.calls if self.calls else 0.0
 
     @property
@@ -71,6 +85,7 @@ class Evaluator:
         user_count = 0
         skipped_users = 0
         solver_stats = dict()
+        total_candidates = 0
 
         for user_idx in range(len(test_dataset)):
             relevant_items = test_dataset.matrix[user_idx].indices
@@ -104,7 +119,7 @@ class Evaluator:
                         test_user=True,
                     )
                 else:
-                    recomms, solver_metrics = self._recommend_with_solvers(
+                    recomms, num_candidates, solver_metrics = self._recommend_with_solvers(
                         user_idx,
                         test_dataset.matrix,
                         model,
@@ -119,8 +134,10 @@ class Evaluator:
                         constraints=constraints,
                         slice_sizes=slice_sizes,
                     )
+                    if len(recomms) == 0:
+                        continue
                     self._proccess_solver_metrics(solver_stats, solver_metrics)
-
+                    total_candidates += num_candidates
 
                 hit = int(hidden_item in recomms)
                 recalls.append(hit)
@@ -138,6 +155,14 @@ class Evaluator:
                     f"({skipped_users} skipped). Average recall@{N} = {total_recall / user_count:.4f}, "
                     f"catalog coverage = {len(total_items_recommended) / train_dataset.num_items:.4f}"
                 )
+                if solvers:
+                    print(f"[Evaluator] Average number of candidates: {total_candidates / user_count:.2f}")
+                    for name, stats in solver_stats.items():
+                        print(f"[Evaluator] {name}: avg time = {stats.avg_time:.2f} ms, "
+                                f"avg time non-empty = {stats.avg_time_non_empty:.2f} ms, "
+                                f"avg time empty = {stats.avg_time_empty:.2f} ms, "
+                              f"avg score = {stats.avg_score:.4f}, "
+                              f"avg constraint satisfaction = {stats.avg_constraint_satisfaction:.4f}")
 
         # final results
         average_recall = total_recall / user_count if user_count else 0.0
@@ -148,7 +173,10 @@ class Evaluator:
         if solvers is None:
             return {'average_recall': average_recall, 'catalog_coverage': len(total_items_recommended) / train_dataset.num_items}
         else:
-            return {name: solver_stats[name].avg_time for name in solver_stats}
+            return {name: {"time": solver_stats[name].avg_time, "time_non_empty": solver_stats[name].avg_time_non_empty,
+                           "time_empty": solver_stats[name].avg_time_empty, "score": solver_stats[name].avg_score,
+                           "constraint_satisfaction": solver_stats[name].avg_constraint_satisfaction}
+                    for name in solver_stats} | {"average_num_candidates": total_candidates / user_count}
 
     def _recommend_with_solvers(
         self,
@@ -165,7 +193,7 @@ class Evaluator:
         M: int,
         constraints: List[Constraint],
         slice_sizes: List[int],
-    ) -> Tuple[List[int], Dict[str, dict]]:
+    ) -> Tuple[List[int], int, Dict[str, dict]]:
 
         solver_metrics: Dict[str, dict] = {}
 
@@ -181,6 +209,11 @@ class Evaluator:
 
         # we always keep the top‑N as baseline
         candidates = {item: score for item, score in zip(inner_recomms, scores)}
+        num_candidates = len(candidates)
+        if num_candidates < N:
+            print(f"[Evaluator] WARNING: fewer than {N} candidates found for user {user_idx}.")
+            return [], 0, {}
+
         candidates_segments = segmentation_extractor.get_segments_dict_for_recomms(candidates)
         unconstrained_recomms: List[int] = inner_recomms[:N]
 
@@ -197,7 +230,7 @@ class Evaluator:
                 recomms, metrics = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N)
                 solver_metrics[name] = metrics
 
-        return unconstrained_recomms, solver_metrics
+        return unconstrained_recomms, num_candidates, solver_metrics
 
     def _solve_recomms(self, solver, preprocessor, candidates, candidates_segments, constraints, N, s=None, preprocess=False):
         start = time.perf_counter()
@@ -209,7 +242,7 @@ class Evaluator:
         else:
             recomms = solver.solve_by_slicing(preprocessor, candidates, candidates_segments, constraints, N=N, slice_size=s)
         elapsed = (time.perf_counter() - start)*1000 # in ms
-        score = sum(candidates[item] for item in recomms)
+        score = sum(candidates[item] for item in recomms.values()) if recomms else 0
         constraint_satisfaction_score = total_satisfaction(recomms, candidates, candidates_segments, constraints)
         metrics = {
             'time': elapsed,
