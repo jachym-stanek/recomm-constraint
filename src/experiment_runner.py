@@ -74,11 +74,13 @@ class ExperimentRunner(object):
                 if N >= M:
                     continue
                 for constraints in constraint_lists:
+                    print(f"[ExperimentRunner] Running experiment with N={N}, M={M}, constraints={constraints}...")
                     metrics = evaluator.evaluate(
                         train_dataset=self.train_dataset,
                         test_dataset=self.test_dataset,
                         model=model,
-                        N=self.settings.recommendations['top_n'],
+                        N=N,
+                        M=M,
                         min_relevant_items=self.settings.min_relevant_items,
                         take_random_hidden=self.settings.recommendations['take_random_hidden'],
                         solvers=solvers,

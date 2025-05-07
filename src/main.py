@@ -62,6 +62,10 @@ def main():
         [
             MinSegmentsConstraint(segmentation_property='category_3', min_segments=2, weight=0.9, window_size=10),
             GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=3, weight=0.9, window_size=10),
+        ],
+        [
+            MaxSegmentsConstraint(segmentation_property='category_3', max_segments=3, weight=0.9, window_size=10),
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=2, weight=0.9, window_size=5),
         ]
     ]
 
