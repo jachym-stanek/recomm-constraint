@@ -412,7 +412,7 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
         # Loop through all segments and add a per-segment minimum if the property matches.
         for seg in segments.values():
             if seg.property == self.segmentation_property:
-                constraint = MinItemsPerSegmentConstraint(seg.id, self.min_items, self.window_size, weight=self.weight)
+                constraint = MinItemsPerSegmentConstraint(seg.id, seg.property, self.min_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_cp_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
 
@@ -485,7 +485,7 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
         # Loop through all segments and add a per-segment maximum if the property matches.
         for seg in segments.values():
             if seg.property == self.segmentation_property:
-                constraint = MaxItemsPerSegmentConstraint(seg.id, self.segmentation_property, self.max_items, self.window_size, weight=self.weight)
+                constraint = MaxItemsPerSegmentConstraint(seg.id, seg.property, self.max_items, self.window_size, weight=self.weight)
                 self.constraints.append(constraint)
                 constraint.add_to_cp_model(model, x, items, segments, row, positions, N, K, already_recommended_items)
 

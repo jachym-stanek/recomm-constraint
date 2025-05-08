@@ -226,7 +226,7 @@ class Evaluator:
                 for s in slice_sizes:
                     recomms, metrics = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, s)
                     solver_metrics[f"{name}-s={s}"] = metrics
-            elif name == "ilp-preprocessing":
+            elif name == "ilp-preprocessing" or name == "cp-preprocessing":
                 recomms, metrics = self._solve_recomms(solver, preprocessor, candidates, candidates_segments, constraints, N, preprocess=True)
                 solver_metrics[name] = metrics
             else:

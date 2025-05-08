@@ -6,77 +6,151 @@ from src.constraints import *
 from src.segmentation import Segment
 
 
+
 class CpSolver(Algorithm):
-    def __init__(self, items, segments, constraints, N):
-        """
-        Args:
-          items: dict mapping candidate item id -> score.
-          segments: dict mapping segment id -> Segment.
-          constraints: list of constraints
-          N: number of recommendation positions.
-        """
-        self.items = items
-        self.segments = segments
-        self.constraints = constraints
-        self.N = N
 
-    def build_model(self, with_objective=True):
-        model = cp_model.CpModel()
-        positions = list(range(self.N))
-        # Create binary decision variables: x[i, p] = 1 if candidate i is placed at position p.
-        x = {}
-        for i in self.items:
-            for p in positions:
-                x[i, p] = model.NewBoolVar(f"x_{i}_{p}")
-        # Each candidate is used at most once.
-        for i in self.items:
-            model.Add(sum(x[i, p] for p in positions) <= 1)
-        # Each recommendation position must be filled by exactly one candidate.
+    def __init__(
+        self,
+        name: str = "CP‑SAT",
+        description: str = "Constraint Programming Solver (OR‑Tools)",
+        verbose: bool = True,
+        time_limit: float | None = None,  # seconds, *None* means unlimited
+    ) -> None:
+        super().__init__(name, description, verbose)
+        self.time_limit = time_limit
+
+    def solve(
+        self,
+        items: Dict[str, float],
+        segments: Dict[str, Segment],
+        constraints: List[Constraint],
+        N: int,
+        already_recommended_items: List[str] | None = None,
+        return_first_feasible: bool = False,
+        num_threads: int = 0,
+    ) -> Dict[int, str] | None:
+
+        if self.verbose:
+            print(
+                f"[{self.name}] Solving CP‑SAT with {len(items)} items, {len(segments)} segments, "
+                f"{len(constraints)} constraints, N={N}."
+            )
+
+        if already_recommended_items is None:
+            already_recommended_items = []
+
+        # Build CP model
+        with_objective = not return_first_feasible
+        model, x, positions = self._build_model(
+            items,
+            segments,
+            constraints,
+            N,
+            already_recommended_items,
+            with_objective=with_objective,
+        )
+
+        # Configure solver
+        solver = cp_model.CpSolver()
+        # Logging & limits
+        solver.parameters.log_search_progress = self.verbose
+        if self.time_limit is not None:
+            solver.parameters.max_time_in_seconds = self.time_limit
+        if num_threads > 0:
+            solver.parameters.num_search_workers = num_threads
+        if return_first_feasible:
+            # Stop as soon as a feasible solution is found
+            solver.parameters.stop_after_first_solution = True
+
+        # Search
+        status = solver.Solve(model)
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            if self.verbose:
+                print(f"[{self.name}] No feasible solution found (status={status}).")
+            return None
+
+        # Extract solution
+        solution: Dict[int, str] = {}
         for p in positions:
-            model.Add(sum(x[i, p] for i in self.items) == 1)
+            for i in items:
+                if solver.Value(x[i, p]):
+                    solution[p] = i
+                    break
+
+        if self.verbose:
+            objective = solver.ObjectiveValue() if with_objective else "-"
+            status_name = {
+                cp_model.OPTIMAL: "OPTIMAL",
+                cp_model.FEASIBLE: "FEASIBLE",
+            }[status]
+            print(
+                f"[{self.name}] {status_name} solution with objective={objective} "
+                f"found in {solver.WallTime()*1000:.2f}ms."
+            )
+
+        # Return slate ordered by position (1...N)
+        return {pos: solution[pos] for pos in sorted(solution)}
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+    def _build_model(
+        self,
+        items: Dict[str, float],
+        segments: Dict[str, Segment],
+        constraints: List[Constraint],
+        N: int,
+        already_recommended_items: List[str],
+        *,
+        with_objective: bool = True,
+    ) -> tuple[cp_model.CpModel, dict[tuple[str, int], cp_model.IntVar], List[int]]:
+        """Construct the CP‑SAT model.
+
+        Returns
+        -------
+        model, x, positions
+            The OR‑Tools model, variable dictionary, and list of positions.
+        """
+        model = cp_model.CpModel()
+        positions = list(range(1, N + 1))
+
+        # Decision variables: x[i, p] == 1 ⇔ item *i* placed at position *p*
+        x: dict[tuple[str, int], cp_model.IntVar] = {
+            (i, p): model.NewBoolVar(f"x_{i}_{p}") for i in items for p in positions
+        }
+
+        # Each item can appear at most once
+        for i in items:
+            model.Add(sum(x[i, p] for p in positions) <= 1)
+
+        # Each position must be filled by exactly one item
+        for p in positions:
+            model.Add(sum(x[i, p] for i in items) == 1)
+
+        # Objective: maximise engagement score (unless caller disables it)
         if with_objective:
-            model.Maximize(sum(self.items[i] * x[i, p] for i in self.items for p in positions))
-        K = 1  # dummy scaling factor
-        already_recommended_items = []  # Assume none for now.
-        # Plug in each constraint.
-        for constraint in self.constraints:
-            constraint.add_to_cp_model(model, x, self.items, self.segments, 0, positions, self.N, K, already_recommended_items)
+            model.Maximize(
+                sum(items[i] * x[i, p] for i in items for p in positions)
+            )
+
+        # Penalty scaling factor – max theoretical score for top‑N items
+        K = sum(sorted(items.values(), reverse=True)[:N])
+
+        # Delegate additional business constraints
+        for constraint in constraints:
+            constraint.add_to_cp_model(
+                model,
+                x,
+                items,
+                segments,
+                0,  # row index (for compatibility with 2‑D slates)
+                positions,
+                N,
+                K,
+                already_recommended_items,
+            )
+
         return model, x, positions
-
-    def solve_optimal(self):
-        model, x, positions = self.build_model(with_objective=True)
-        solver = cp_model.CpSolver()
-        status = solver.Solve(model)
-        solution = {}
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            for p in positions:
-                for i in self.items:
-                    if solver.Value(x[i, p]) == 1:
-                        solution[p] = i
-                        break
-        total_score = sum(self.items[solution[p]] for p in solution) if solution else 0
-        return solution, total_score
-
-    def solve_first_feasible(self):
-        model, x, positions = self.build_model(with_objective=False)
-        solver = cp_model.CpSolver()
-        status = solver.Solve(model)
-        solution = {}
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            for p in positions:
-                for i in self.items:
-                    if solver.Value(x[i, p]) == 1:
-                        solution[p] = i
-                        break
-        total_score = sum(self.items[solution[p]] for p in solution) if solution else 0
-        return solution, total_score
-
-    def check_constraints(self, solution):
-        # Check if the solution satisfies all constraints.
-        for constraint in self.constraints:
-            if not constraint.check_constraint(solution, self.items, self.segments):
-                return False
-        return True
 
 
 class PermutationCpSolver:

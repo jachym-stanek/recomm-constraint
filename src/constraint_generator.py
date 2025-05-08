@@ -62,8 +62,13 @@ class ConstraintGenerator:
 
             available_types = [c for c in available_types if c not in exclude_specific]
 
+        max_runs = 1000
+        run = 0
+        while len(generated_constraints) < num_constraints :
+            run += 1
+            if run > max_runs:
+                break
 
-        while len(generated_constraints) < num_constraints:
             constraint_class = random.choice(available_types)
 
             weight_val = 1.0
@@ -197,7 +202,8 @@ if __name__ == "__main__":
     # Test the generated constraints with min window size and without position constraints
     constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segments,
                                                         segmentation_properties, min_window_size=5, weight_type="soft",
-                                                        exclude_specific=[ItemAtPositionConstraint, ItemFromSegmentAtPositionConstraint])
+                                                        exclude_specific=[ItemAtPositionConstraint, ItemFromSegmentAtPositionConstraint]
+                                                        )
     print(f"Generated {num_constraints} random constraints with min window size and without position constraints:")
     for c in constraints:
         print(c)
