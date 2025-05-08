@@ -1,6 +1,6 @@
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Any
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -87,6 +87,8 @@ class Evaluator:
         solver_stats = dict()
         total_candidates = 0
 
+        detailed_rows: List[Dict[str, Any]] = []
+
         for user_idx in range(len(test_dataset)):
             relevant_items = test_dataset.matrix[user_idx].indices
             if len(relevant_items) < min_relevant_items:
@@ -136,7 +138,7 @@ class Evaluator:
                     )
                     if len(recomms) == 0:
                         continue
-                    self._proccess_solver_metrics(solver_stats, solver_metrics)
+                    self._proccess_solver_metrics(user_idx, N, M, constraints, detailed_rows, solver_stats, solver_metrics)
                     total_candidates += num_candidates
 
                 hit = int(hidden_item in recomms)
@@ -173,10 +175,11 @@ class Evaluator:
         if solvers is None:
             return {'average_recall': average_recall, 'catalog_coverage': len(total_items_recommended) / train_dataset.num_items}
         else:
-            return {name: {"time": solver_stats[name].avg_time, "time_non_empty": solver_stats[name].avg_time_non_empty,
+            aggregated = {name: {"time": solver_stats[name].avg_time, "time_non_empty": solver_stats[name].avg_time_non_empty,
                            "time_empty": solver_stats[name].avg_time_empty, "score": solver_stats[name].avg_score,
                            "constraint_satisfaction": solver_stats[name].avg_constraint_satisfaction}
                     for name in solver_stats} | {"average_num_candidates": total_candidates / user_count}
+            return aggregated, detailed_rows
 
     def _recommend_with_solvers(
         self,
@@ -251,8 +254,24 @@ class Evaluator:
         }
         return recomms, metrics
 
-    def _proccess_solver_metrics(self, solver_stats: Dict[str, SolverResults], solver_metrics: Dict[str, dict]) -> None:
+    def _proccess_solver_metrics(self, user_idx, N, M, constraints, detailed_rows, solver_stats, solver_metrics) -> None:
         for name, metrics in solver_metrics.items():
             if name not in solver_stats:
                 solver_stats[name] = SolverResults()
             solver_stats[name].add(metrics['time'], metrics['constraint_satisfaction_score'], metrics['score'])
+
+        row_base = {
+            "useridx": user_idx,  # ← renamed
+            "N": N,
+            "M": M,
+            "constraints": [str(c) for c in (constraints or [])],
+        }
+        for s_name, m in solver_metrics.items():
+            detailed_rows.append({
+                **row_base,
+                "solver": s_name,
+                "time_ms": m["time"],
+                "constraint_satisfaction": m["constraint_satisfaction_score"],
+                "score": m["score"],
+                "empty": m["score"] == 0,
+            })

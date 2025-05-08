@@ -1,11 +1,12 @@
 import time
 from ortools.sat.python import cp_model
 
+from src.algorithms.algorithm import Algorithm
 from src.constraints import *
 from src.segmentation import Segment
 
 
-class CpSolver:
+class CpSolver(Algorithm):
     def __init__(self, items, segments, constraints, N):
         """
         Args:

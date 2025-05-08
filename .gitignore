@@ -163,6 +163,7 @@ notes.txt
 
 # exclude the results logs
 src/results*.txt
+src/results*.csv
 src/*results.txt
 
 # exclude the results plots

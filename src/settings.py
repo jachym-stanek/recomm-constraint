@@ -87,7 +87,7 @@ class Settings:
             },
             'use_gpu': False,
             'logging': {
-                'log_every': 50,
+                'log_every': 100,
             },
             'min_relevant_items': { # minimum is 2 - one hidden and one for finding similar items
                 'movielens': 2,

@@ -1,4 +1,7 @@
 import time
+import pandas as pd
+import os
+from typing import List, Dict, Any
 
 from src.algorithms.ItemKnn import ItemKnn
 from src.data_split import DataSplitter
@@ -13,8 +16,11 @@ class ExperimentRunner(object):
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
         self.results_file = results_file
+        self.results_df = results_file.split('.')[0] + '.csv'
         self.constraints = constraints
         self.segmentation_extractor = SegmentationExtractor(settings)
+
+        self._rows_buffer: List[Dict[str, Any]] = []
 
         self.default_params = {
             'num_factors': 256,
@@ -75,7 +81,7 @@ class ExperimentRunner(object):
                     continue
                 for constraints in constraint_lists:
                     print(f"[ExperimentRunner] Running experiment with N={N}, M={M}, constraints={constraints}...")
-                    metrics = evaluator.evaluate(
+                    aggregated, detailed_rows = evaluator.evaluate(
                         train_dataset=self.train_dataset,
                         test_dataset=self.test_dataset,
                         model=model,
@@ -89,9 +95,10 @@ class ExperimentRunner(object):
                         precomputed_neighborhoods=precomputed_neighborhoods
                     )
                     rewrites = {"N": N, "M": M, "constraints": [str(c) for c in constraints]}
-                    print(f"[ExperimentRunner] Rewrites: {rewrites} Evaluation Metrics: {metrics}")
-                    self._save_metrics_to_file(rewrites, metrics)
-                    results.append((rewrites, metrics))
+                    print(f"[ExperimentRunner] Rewrites: {rewrites} Evaluation Metrics: {aggregated}")
+                    self._rows_buffer.extend(detailed_rows)
+                    self._flush_solver_df()
+                    self._save_metrics_to_file(rewrites, aggregated)
 
 
     def _run_experiment_for_particular_params(self, params_rewrite, model=None, use_approximate_model=False, solver=None):
@@ -135,6 +142,26 @@ class ExperimentRunner(object):
     def _save_metrics_to_file(self, params_rewrite, metrics):
         with open(self.results_file, 'a') as f:
             f.write(f'{(params_rewrite, metrics)}\n')
+
+    def _flush_solver_df(self) -> None:
+        """Append buffered rows to <results_file.csv> """
+        if not self._rows_buffer:
+            return
+
+        df_new = pd.DataFrame(self._rows_buffer,
+                              columns=["useridx", "N", "M", "constraints",
+                                       "solver", "time_ms",
+                                       "constraint_satisfaction", "score", "empty"])
+
+        header_needed = (not os.path.exists(self.results_df) # write header we do the first write
+                         or os.path.getsize(self.results_df) == 0)
+        df_new.to_csv(self.results_df,
+                      mode="a",
+                      index=False,
+                      header=header_needed)
+
+        # Clear buffer so the next flush only writes fresh rows
+        self._rows_buffer.clear()
 
     def _get_model_from_params_rewrite(self, params_rewrite, use_approximate_model=False):
         params = self.default_params.copy()

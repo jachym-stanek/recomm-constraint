@@ -1,6 +1,7 @@
 import time, os, re
 
 from src.algorithms.ILP import IlpSolver
+from src.algorithms.CP import CpSolver
 from src.constraints import GlobalMaxItemsPerSegmentConstraint
 from src.data_split import DataSplitter
 from src.evaluator import Evaluator
@@ -54,23 +55,40 @@ def main():
     #                                                                 use_approximate_model=False, retrain_every_rewrite=False)
 
 
-    solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False), 'ilp-slicing': IlpSolver(verbose=False)}
+    evaluate_solvers_on_id1()
+
+def evaluate_solvers_on_id1():
+    start_time = time.time()
+    settings = Settings()
+    settings.set_dataset_in_use('industrial_dataset1')
+    data_splitter = DataSplitter(settings)
+    data_splitter.load_data(settings.dataset_name)
+    data_splitter.split_data()
+    train_dataset = data_splitter.get_train_data()
+    test_dataset = data_splitter.get_test_data()
+    experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
+    solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False),
+               'ilp-slicing': IlpSolver(verbose=False), 'cp': CpSolver(verbose=False),}
     num_recomms_values = [10, 15, 20, 30, 50]
     num_candidates_values = [20, 30, 50, 100, 200]
-    item_properties = ['category_2', 'category_3', 'key_type'] # properties for industrial_dataset1
+    item_properties = ['category_2', 'category_3', 'key_type']  # properties for industrial_dataset1
     constraint_lists = [
         [
             MinSegmentsConstraint(segmentation_property='category_3', min_segments=2, weight=0.9, window_size=10),
-            GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=3, weight=0.9, window_size=10),
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=3, weight=0.9,
+                                               window_size=10),
         ],
         [
             MaxSegmentsConstraint(segmentation_property='category_3', max_segments=3, weight=0.9, window_size=10),
-            GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=2, weight=0.9, window_size=5),
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property='category_2', max_items=2, weight=0.9,
+                                               window_size=5),
         ]
     ]
 
     slice_sizes = [2, 5, 7, 8, 10, 12, 15, 16, 20]
-    experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists, slice_sizes, item_properties)
+    experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists,
+                                                slice_sizes, item_properties)
+    print(f"[ExperimentRunner] Evaluation completed in {time.time() - start_time:.2f} seconds.")
 
 def measure_changes_with_diversity_constraints():
     start_time = time.time()
@@ -124,5 +142,6 @@ def measure_changes_with_diversity_constraints():
 
 if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
-    main()
+    # main()
+    evaluate_solvers_on_id1()
     # measure_changes_with_diversity_constraints()
