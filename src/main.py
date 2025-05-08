@@ -70,7 +70,7 @@ def evaluate_solvers_on_id1():
     solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False),
                'ilp-slicing': IlpSolver(verbose=False)} # not evaluating CP solver because it cannot handle soft constraints
     num_recomms_values = [10, 15, 20, 30, 50]
-    num_candidates_values = [20, 30, 50, 100, 200]
+    num_candidates_values = [20, 30, 50, 100]
     item_properties = ['category_2', 'category_3', 'key_type']  # properties for industrial_dataset1
     constraint_generator = ConstraintGenerator()
     random_5_constraints = constraint_generator.generate_random_constraints(num_constraints=5, num_recommendations=10,
@@ -95,6 +95,48 @@ def evaluate_solvers_on_id1():
     ]
 
     slice_sizes = [2, 5, 7, 8, 10, 12, 15, 16, 20]
+    experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists,
+                                                slice_sizes, item_properties)
+    print(f"[ExperimentRunner] Evaluation completed in {time.time() - start_time:.2f} seconds.")
+
+def evaluate_solvers_on_movielens():
+    start_time = time.time()
+    settings = Settings()
+    settings.set_dataset_in_use('movielens')
+    data_splitter = DataSplitter(settings)
+    data_splitter.load_data(settings.dataset_name)
+    data_splitter.split_data()
+    train_dataset = data_splitter.get_train_data()
+    test_dataset = data_splitter.get_test_data()
+    experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
+    solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False),
+               'ilp-slicing': IlpSolver(verbose=False)} # not evaluating CP solver because it cannot handle soft constraints
+    num_recomms_values = [10, 15, 20, 30, 50]
+    num_candidates_values = [20, 30, 50, 100, 200, 300]
+    item_properties = ['genres', 'title', 'year']
+    constraint_generator = ConstraintGenerator()
+    random_5_constraints = constraint_generator.generate_random_constraints(num_constraints=5, num_recommendations=10,
+                                                        segmentation_properties=item_properties, min_window_size=2, weight_type="soft",
+                                                        exclude_specific=[ItemAtPositionConstraint, ItemFromSegmentAtPositionConstraint, MinItemsPerSegmentConstraint, MaxItemsPerSegmentConstraint])
+    random_10_constraints = constraint_generator.generate_random_constraints(num_constraints=10, num_recommendations=10,
+                                                        segmentation_properties=item_properties, min_window_size=2, weight_type="soft",
+                                                        exclude_specific=[ItemAtPositionConstraint, ItemFromSegmentAtPositionConstraint])
+    constraint_lists = [
+        random_5_constraints,
+        random_10_constraints,
+        [
+            MinSegmentsConstraint(segmentation_property='year', min_segments=2, weight=0.9, window_size=10),
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property='genres', max_items=3, weight=0.9,
+                                               window_size=10),
+        ],
+        [
+            MaxSegmentsConstraint(segmentation_property='year', max_segments=3, weight=0.9, window_size=5),
+            GlobalMaxItemsPerSegmentConstraint(segmentation_property='genres', max_items=2, weight=0.9,
+                                               window_size=5),
+        ]
+    ]
+
+    slice_sizes = [2, 5, 7, 8, 10, 15, 20]
     experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists,
                                                 slice_sizes, item_properties)
     print(f"[ExperimentRunner] Evaluation completed in {time.time() - start_time:.2f} seconds.")
@@ -152,5 +194,6 @@ def measure_changes_with_diversity_constraints():
 if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
     # main()
-    evaluate_solvers_on_id1()
+    # evaluate_solvers_on_id1()
     # measure_changes_with_diversity_constraints()
+    evaluate_solvers_on_movielens()
