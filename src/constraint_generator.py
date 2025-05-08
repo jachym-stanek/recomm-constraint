@@ -139,8 +139,11 @@ class ConstraintGenerator:
                 if not segmentation_properties:
                     continue
                 segmentation_property = random.choice(segmentation_properties)
-                num_segments = sum(1 for seg in segments.values() if seg.property == segmentation_property) # make sure constraint is feasible
-                max_per_window = math.ceil(window_size//num_segments) if num_segments > 0 else 1
+                if len(segments) > 0:
+                    num_segments = sum(1 for seg in segments.values() if seg.property == segmentation_property) # make sure constraint is feasible
+                    max_per_window = math.ceil(window_size//num_segments) if num_segments > 0 else 1
+                else:
+                    max_per_window = window_size
                 min_items = random.randint(1, max_per_window)
                 c = GlobalMinItemsPerSegmentConstraint(segmentation_property, min_items, window_size, weight=weight_val)
                 global_min_max.setdefault(segmentation_property, {})['min'] = min_items
@@ -161,7 +164,7 @@ class ConstraintGenerator:
                     continue
                 segmentation_property = random.choice(segmentation_properties)
                 # When available, use the number of segment_ids to bound the number of segments.
-                max_possible = sum([1 for seg in segments.values() if seg.property == segmentation_property])
+                max_possible = sum([1 for seg in segments.values() if seg.property == segmentation_property]) if len(segments.values()) > 0 else window_size
                 max_possible = min(max_possible, window_size)
                 min_segments = random.randint(1, max_possible)
                 c = MinSegmentsConstraint(segmentation_property, min_segments, window_size, weight=weight_val)
