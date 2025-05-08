@@ -180,6 +180,7 @@ class ConstraintGenerator:
 
             generated_constraints.append(c)
 
+        print(f"[ConstraintGenerator] Generated {len(generated_constraints)} constraints: {constraints}.")
         return generated_constraints
 
 
