@@ -1,3 +1,4 @@
+import math
 import random
 
 from matplotlib.style.core import available
@@ -11,7 +12,7 @@ class ConstraintGenerator:
         pass
 
     def generate_random_constraints(self, num_constraints, num_recommendations, items=None, segments=None,
-                                    segmentation_properties=None, weight_type="mixed", exclude_specific=None):
+                                    segmentation_properties=None, weight_type="mixed", exclude_specific=None, min_window_size=1):
         """
         Generate n random 1D constraints with random parameters.
 
@@ -51,6 +52,9 @@ class ConstraintGenerator:
         if weight_type not in ["soft", "hard", "mixed"]:
             raise ValueError('weight_type must be one of "soft", "hard", or "mixed".')
 
+        if min_window_size > num_recommendations:
+            raise ValueError('Parameter min_window_size must be less than or equal to num_recommendations.')
+
         # Define available 1D constraint classes.
         if exclude_specific is not None:
             if not isinstance(exclude_specific, (list, tuple)):
@@ -73,39 +77,47 @@ class ConstraintGenerator:
             elif weight_type == "hard":
                 pass
 
-            window_size = random.randint(1, num_recommendations)
+            window_size = random.randint(min_window_size, num_recommendations)
 
             if constraint_class == MinItemsPerSegmentConstraint:
-                if not segment_ids:
+                if not segments:
                     continue
-                segment_id = random.choice(segment_ids)
-                # Choose a minimum between 1 and the window_size.
-                min_items = random.randint(1, window_size)
+                segment_label = random.choice(list(segments.keys()))
+                max_item_per_window = math.ceil(len(segments[segment_label])/(num_recommendations//window_size))
+                max_item_per_window = min(max_item_per_window, window_size)
+                min_items = random.randint(1, max_item_per_window)
                 # If a maximum constraint already exists for this segment, adjust min_items if needed.
-                if segment_id in min_max_per_segment and 'max' in min_max_per_segment[segment_id]:
-                    if min_items > min_max_per_segment[segment_id]['max']:
-                        min_items = min_max_per_segment[segment_id]['max']
-                c = MinItemsPerSegmentConstraint(segment_id, min_items, window_size, weight=weight_val)
+                if segment_label in min_max_per_segment and 'max' in min_max_per_segment[segment_label]:
+                    if min_items > min_max_per_segment[segment_label]['max']:
+                        min_items = min_max_per_segment[segment_label]['max']
+                segment_id = segments[segment_label].id
+                segment_property = segments[segment_label].property
+                c = MinItemsPerSegmentConstraint(segment_id, segment_property, min_items, window_size, weight=weight_val)
                 min_max_per_segment.setdefault(segment_id, {})['min'] = min_items
 
             elif constraint_class == MaxItemsPerSegmentConstraint:
-                if not segment_ids:
+                if not segments:
                     continue
-                segment_id = random.choice(segment_ids)
-                # Choose a maximum between 1 and window_size.
-                max_items = random.randint(1, window_size)
-                if segment_id in min_max_per_segment and 'min' in min_max_per_segment[segment_id]:
-                    if max_items < min_max_per_segment[segment_id]['min']:
-                        max_items = min_max_per_segment[segment_id]['min']
-                c = MaxItemsPerSegmentConstraint(segment_id, max_items, window_size, weight=weight_val)
+                segment_label = random.choice(list(segments.keys()))
+                max_item_per_window = math.ceil(len(segments[segment_label])/(num_recommendations//window_size))
+                max_item_per_window = min(max_item_per_window, window_size)
+                max_items = random.randint(1, max_item_per_window)
+                if segment_label in min_max_per_segment and 'min' in min_max_per_segment[segment_label]:
+                    if max_items < min_max_per_segment[segment_label]['min']:
+                        max_items = min_max_per_segment[segment_label]['min']
+                segment_id = segments[segment_label].id
+                segment_property = segments[segment_label].property
+                c = MaxItemsPerSegmentConstraint(segment_id, segment_property, max_items, window_size, weight=weight_val)
                 min_max_per_segment.setdefault(segment_id, {})['max'] = max_items
 
             elif constraint_class == ItemFromSegmentAtPositionConstraint:
-                if not segment_ids:
+                if not segments:
                     continue
-                segment_id = random.choice(segment_ids)
+                segment_label = random.choice(list(segments.keys()))
                 position = random.randint(1, num_recommendations)
-                c = ItemFromSegmentAtPositionConstraint(segment_id, position, weight=weight_val)
+                segment_id = segments[segment_label].id
+                segment_property = segments[segment_label].property
+                c = ItemFromSegmentAtPositionConstraint(segment_id, segment_property, position, weight=weight_val)
 
             elif constraint_class == ItemAtPositionConstraint:
                 if not items:
@@ -122,7 +134,9 @@ class ConstraintGenerator:
                 if not segmentation_properties:
                     continue
                 segmentation_property = random.choice(segmentation_properties)
-                min_items = random.randint(1, window_size)
+                num_segments = sum(1 for seg in segments.values() if seg.property == segmentation_property) # make sure constraint is feasible
+                max_per_window = math.ceil(window_size//num_segments) if num_segments > 0 else 1
+                min_items = random.randint(1, max_per_window)
                 c = GlobalMinItemsPerSegmentConstraint(segmentation_property, min_items, window_size, weight=weight_val)
                 global_min_max.setdefault(segmentation_property, {})['min'] = min_items
 
@@ -130,7 +144,7 @@ class ConstraintGenerator:
                 if not segmentation_properties:
                     continue
                 segmentation_property = random.choice(segmentation_properties)
-                max_items = random.randint(1, window_size)
+                max_items = random.randint(1, window_size)  # maximum constraint wont have an issue with infeasibility
                 if segmentation_property in global_min_max and 'min' in global_min_max[segmentation_property]:
                     if max_items < global_min_max[segmentation_property]['min']:
                         max_items = global_min_max[segmentation_property]['min']
@@ -142,7 +156,8 @@ class ConstraintGenerator:
                     continue
                 segmentation_property = random.choice(segmentation_properties)
                 # When available, use the number of segment_ids to bound the number of segments.
-                max_possible = len(segment_ids) if segment_ids else window_size
+                max_possible = sum([1 for seg in segments.values() if seg.property == segmentation_property])
+                max_possible = min(max_possible, window_size)
                 min_segments = random.randint(1, max_possible)
                 c = MinSegmentsConstraint(segmentation_property, min_segments, window_size, weight=weight_val)
 
@@ -150,8 +165,7 @@ class ConstraintGenerator:
                 if not segmentation_properties:
                     continue
                 segmentation_property = random.choice(segmentation_properties)
-                max_possible = len(segment_ids) if segment_ids else window_size
-                max_segments = random.randint(1, max_possible)
+                max_segments = random.randint(1, window_size)
                 c = MaxSegmentsConstraint(segmentation_property, max_segments, window_size, weight=weight_val)
             else:
                 continue
@@ -166,12 +180,25 @@ if __name__ == "__main__":
     num_recomms = 10
     num_constraints = 5
     items = [f'item-{i}' for i in range(1, num_recomms+1)]
-    segment_ids = [f'segment-{i}' for i in range(1, 4)]
     segmentation_properties = ['prop1', 'prop2']
+    segments_list = [
+        Segment('segment1', 'prop1', *items[:5]),
+        Segment('segment2', 'prop1', *items[5:8]),
+        Segment('segment1', 'prop2', *items[5:10])
+    ]
+    segments = {segment.label: segment for segment in segments_list}
     generator = ConstraintGenerator()
     constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segments,
                                                         segmentation_properties)
     print(f"Generated {num_constraints} random constraints:")
+    for c in constraints:
+        print(c)
+
+    # Test the generated constraints with min window size and without position constraints
+    constraints = generator.generate_random_constraints(num_constraints, num_recomms, items, segments,
+                                                        segmentation_properties, min_window_size=5, weight_type="soft",
+                                                        exclude_specific=[ItemAtPositionConstraint, ItemFromSegmentAtPositionConstraint])
+    print(f"Generated {num_constraints} random constraints with min window size and without position constraints:")
     for c in constraints:
         print(c)
 
