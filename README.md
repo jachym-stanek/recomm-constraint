@@ -16,4 +16,5 @@ In order to run experiments that involve the recommendation model and data, use 
 * Download the dataset from https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset
 * Extract the files it in the folder *data/movielens_raw*
 * Run scripts *data_transform* and *data_aggregator*
+* Run the experiments
 

@@ -55,7 +55,7 @@ def basic_test_dfs():
     # Test 0 N=5, M=10, S=2
     segmentation_property = 'test-prop'
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 11)}
-    segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*5:(i+1)*5]) for i in range(2)}
+    segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*5:(i+1)*5]) for i in range(2)}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 2, 3),
         MinSegmentsConstraint(segmentation_property, 1, 2)
@@ -74,7 +74,7 @@ def basic_test_dfs():
     # Test 1 N=10, M=100, S=10
     segmentation_property = 'test-prop'
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
-    segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(10)}
+    segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(10)}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
         MinSegmentsConstraint(segmentation_property, 2, 5)
@@ -92,7 +92,7 @@ def basic_test_dfs():
     # Test 2 N=20, M=200, S=20
     segmentation_property = 'test-prop'
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 201)}
-    segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(20)}
+    segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(20)}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 3, 5),
         MinSegmentsConstraint(segmentation_property, 3, 6)
@@ -112,15 +112,15 @@ def basic_test_dfs():
     # compare to ILP
     preprocessor = ItemPreprocessor(verbose=False)
     solver = IlpSolver(verbose=False)
-    segments_dict = {seg.id: seg for seg in segments.values()}
-    results_ilp = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, preprocessor, items, segments_dict, constraints, N, 100, [10],
+    segments = {seg.label: seg for seg in segments.values()}
+    results_ilp = run_ilp_test_all_approaches(f"Test Case N:{N}, M: 100", solver, preprocessor, items, segments, constraints, N, 100, [10],
                                 verbose=False)
     print(f"ILP: {results_ilp}")
 
     # try segments with decreasing scores
     segmentation_property = 'test-prop'
     items = {f'item-{i}': i for i in range(1, 41)}
-    segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(4)}
+    segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(4)}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 3, 4),
     ]
@@ -140,7 +140,7 @@ def basic_test_dfs():
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 101)}
     segments_list = [Segment(f'segment{i}', segmentation_property, *list(items.keys())[i * 10:(i + 1) * 10])
                      for i in range(10)]
-    segments_dict = {seg.id: seg for seg in segments_list}
+    segments = {seg.label: seg for seg in segments_list}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
         MinSegmentsConstraint(segmentation_property, 2, 5)
@@ -158,13 +158,13 @@ def basic_test_dfs():
     print(f"Score: {score}")
     print(f"Constraints satisfied: {constraints_satisfied}")
 
-    results = run_test_idfs(f"Test Case N:{N}, M: 100", items, segments_dict, constraints, N)
+    results = run_test_idfs(f"Test Case N:{N}, M: 100", items, segments, constraints, N)
     print(f"IDFS time with run_test: {results['normal']['time']} ms")
 
     # Test 5 N=20, M=500, S=50
     segmentation_property = 'test-prop'
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, 501)}
-    segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(50)}
+    segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(50)}
     constraints = [
         GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
         MinSegmentsConstraint(segmentation_property, 2, 5)
@@ -190,10 +190,10 @@ def idfs_speed_efficiency():
         print(f"Running test for M={M}")
         segmentation_property = 'test-prop'
         items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
-        segments = {f'segment-{i}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(M//20)}
+        segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(M//20)}
         constraints = [
             GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
-            MinSegmentsConstraint(segmentation_property, 14, 15)
+            MinSegmentsConstraint(segmentation_property, 1, 5)
         ]
 
         start_time = time.time()
@@ -213,7 +213,7 @@ def idfs_speed_efficiency():
 
 
 if __name__ == "__main__":
-    basic_test_dfs()
+    # basic_test_dfs()
     idfs_speed_efficiency()
     # zkusit udelat poradne zateze (testy s nahodnymi constrainty, testy s nesplnitelnymi constrainty)
     # udelat nejake testy na soft constrainty
