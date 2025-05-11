@@ -194,6 +194,6 @@ def measure_changes_with_diversity_constraints():
 if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
     # main()
-    # evaluate_solvers_on_id1()
     # measure_changes_with_diversity_constraints()
-    evaluate_solvers_on_movielens()
+    evaluate_solvers_on_id1()
+    # evaluate_solvers_on_movielens()

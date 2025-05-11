@@ -151,7 +151,7 @@ class Evaluator:
             else:
                 skipped_users += 1
 
-            if user_count and user_count % self.log_every == 0:
+            if user_count and (user_count + skipped_users) % self.log_every == 0:
                 print(
                     f"[Evaluator] processed {user_count + skipped_users}/{len(test_dataset)} users "
                     f"({skipped_users} skipped). Average recall@{N} = {total_recall / user_count:.4f}, "
