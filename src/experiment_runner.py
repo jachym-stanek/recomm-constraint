@@ -123,7 +123,7 @@ class ExperimentRunner(object):
             model.item_knn = ItemKnn(K=params_rewrite['nearest_neighbors'])
 
         # Evaluate the model
-        evaluator = Evaluator(self.settings)
+        evaluator = Evaluator(self.settings, self.segmentation_extractor)
         metrics = evaluator.evaluate(
             train_dataset=self.train_dataset,
             test_dataset=self.test_dataset,

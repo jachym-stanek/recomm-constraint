@@ -202,6 +202,7 @@ def idfs_speed_efficiency():
         for c in constraints:
             start_time = time.time()
             solution = dfs_solver.solve(items, segments, c, N)
+            print(f"Solution: {solution}")
             elapsed = (time.time() - start_time)*1000
             constraints_satisfied = all([constraint.check_constraint(solution, items, segments) for constraint in c])
             print(f"Constraints satisfied: {constraints_satisfied}, Time: {elapsed} ms")
@@ -212,8 +213,9 @@ def idfs_speed_efficiency():
     print(results)
 
     plt.plot(list(results.keys()), list(results.values()))
-    plt.xlabel("Number of Candidate Items")
-    plt.ylabel("Time (ms)")
+    plt.xlabel("Number of Candidate Items", fontsize=14)
+    plt.ylabel("Time (ms)", fontsize=14)
+    plt.tick_params(axis="both", which="major", labelsize=12)
     plt.tight_layout()
     plt.grid()
     plt.show()
@@ -234,6 +236,7 @@ def idfs_speed_efficiency():
         for c in constraints:
             start_time = time.time()
             solution = dfs_solver.solve(items, segments, c, N)
+            print(f"Solution: {solution}")
             elapsed = (time.time() - start_time) * 1000
             constraints_satisfied = all([constraint.check_constraint(solution, items, segments) for constraint in c])
             print(f"Constraints satisfied: {constraints_satisfied}, Time: {elapsed} ms")
@@ -244,8 +247,9 @@ def idfs_speed_efficiency():
     print(results)
 
     plt.plot(list(results.keys()), list(results.values()))
-    plt.xlabel("Number of Candidate Items")
-    plt.ylabel("Time (ms)")
+    plt.xlabel("Number of Candidate Items", fontsize=14)
+    plt.ylabel("Time (ms)", fontsize=14)
+    plt.tick_params(axis="both", which="major", labelsize=12)
     plt.tight_layout()
     plt.grid()
     plt.show()
