@@ -35,7 +35,7 @@ class IlpSolver(Algorithm):
             slice_N = min(slice_size, N - len(final_result)) # full slice or remaining items
             if look_ahead:
                 slice_N = slice_size * 2
-            slice_constraints = self._get_constraint_for_a_slice(constraints, slice_N, already_recommended_items)
+            slice_constraints = self._get_constraints_for_a_slice(constraints, slice_N, already_recommended_items)
             slice_candidates = preprocessor.preprocess_items(remaining_items, segments, slice_constraints, slice_N)
             slice_segments = self._get_slice_segments(segments, slice_candidates, already_recommended_items)
 
@@ -87,7 +87,7 @@ class IlpSolver(Algorithm):
        thus in this case we need to make them soft in order not to fail (this is not an issue for hard max constraints)
      * If slice size is smaller than window size, we need to also adjust the window size
     """
-    def _get_constraint_for_a_slice(self, constraints: List[Constraint], slice_N: int, already_recommended_items: List[str]):
+    def _get_constraints_for_a_slice(self, constraints: List[Constraint], slice_N: int, already_recommended_items: List[str]):
         slice_constraints = []
 
         for constraint in constraints:
