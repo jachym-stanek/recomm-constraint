@@ -68,7 +68,8 @@ class ItemKnn(Algorithm):
         # Sort recommended items by similarity score
         recommendations = sorted(recommended_items.items(), key=lambda x: x[1], reverse=True)
         if len(recommendations) == 0:
-            print("[ItemKnn] WARNING: No recommendations found.")
+            if self.verbose:
+                print("[ItemKnn] WARNING: No recommendations found.")
             return [], []
 
         items, scores = zip(*recommendations)

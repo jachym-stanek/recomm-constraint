@@ -13,6 +13,7 @@ from src.algorithms.InformedDFS import IdfsSolver
 from src.algorithms.Preprocessor import ItemPreprocessor
 from src.constraints import *
 from ilp_experiments import run_test_all_approaches as run_ilp_test_all_approaches
+from src.constraint_generator import ConstraintGenerator
 
 
 def run_test_idfs(test_name, items, segments, constraints, N):
@@ -184,28 +185,67 @@ def idfs_speed_efficiency():
     # graph for increasing M
     results = dict()
     dfs_solver = IdfsSolver()
-    N = 20
+    constraint_generator = ConstraintGenerator()
+    segmentation_property = 'test-prop'
+    N = 7
 
-    for M in [50, 75, 100, 125, 150, 175, 200, 250, 300, 350, 400, 450, 500]:
+    constraints = [
+        [GlobalMaxItemsPerSegmentConstraint(segmentation_property, 2, 4),
+        MinSegmentsConstraint(segmentation_property, 2, 4)],
+    ]
+
+    for M in [40, 50, 75, 100, 150]:
         print(f"Running test for M={M}")
-        segmentation_property = 'test-prop'
-        items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M+1)}
+        items = {f'item-{i}': i for i in range(1, M+1)}
         segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property, *list(items.keys())[i*10:(i+1)*10]) for i in range(M//20)}
-        constraints = [
-            GlobalMaxItemsPerSegmentConstraint(segmentation_property, 1, 5),
-            MinSegmentsConstraint(segmentation_property, 1, 5)
-        ]
+        c_times = []
+        for c in constraints:
+            start_time = time.time()
+            solution = dfs_solver.solve(items, segments, c, N)
+            elapsed = (time.time() - start_time)*1000
+            constraints_satisfied = all([constraint.check_constraint(solution, items, segments) for constraint in c])
+            print(f"Constraints satisfied: {constraints_satisfied}, Time: {elapsed} ms")
+            c_times.append(elapsed)
+        results[M] = sum(c_times) / len(c_times)
 
-        start_time = time.time()
-        solution = dfs_solver.solve(items, segments, constraints, N)
-        results[M] = (time.time() - start_time)*1000
-        constraints_satisfied = all([constraint.check_constraint(solution, items, segments) for constraint in constraints])
-        print(f"Constraints satisfied: {constraints_satisfied}, Time: {results[M]} ms")
+    print("Results:")
+    print(results)
 
     plt.plot(list(results.keys()), list(results.values()))
-    plt.xlabel("M")
+    plt.xlabel("Number of Candidate Items")
     plt.ylabel("Time (ms)")
-    plt.title("IDFS Time vs M")
+    plt.tight_layout()
+    plt.grid()
+    plt.show()
+
+    N = 7
+    constraints = [
+        [GlobalMaxItemsPerSegmentConstraint(segmentation_property, 2, 2),
+         MinSegmentsConstraint(segmentation_property, 1, 2)],
+    ]
+
+    for M in [40, 50, 75, 100, 150]:
+        print(f"Running test for M={M}")
+        items = {f'item-{i}': i for i in range(1, M + 1)}
+        segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property,
+                                                                    *list(items.keys())[i * 10:(i + 1) * 10]) for i in
+                    range(M // 20)}
+        c_times = []
+        for c in constraints:
+            start_time = time.time()
+            solution = dfs_solver.solve(items, segments, c, N)
+            elapsed = (time.time() - start_time) * 1000
+            constraints_satisfied = all([constraint.check_constraint(solution, items, segments) for constraint in c])
+            print(f"Constraints satisfied: {constraints_satisfied}, Time: {elapsed} ms")
+            c_times.append(elapsed)
+        results[M] = sum(c_times) / len(c_times)
+
+    print("Results:")
+    print(results)
+
+    plt.plot(list(results.keys()), list(results.values()))
+    plt.xlabel("Number of Candidate Items")
+    plt.ylabel("Time (ms)")
     plt.tight_layout()
     plt.grid()
     plt.show()

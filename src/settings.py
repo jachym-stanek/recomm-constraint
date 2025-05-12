@@ -82,7 +82,7 @@ class Settings:
             },
             'recommendations': {
                 'top_n': 10,        # number of recommendations to generate
-                'num_hidden': 1,   # number of hidden items to use for evaluation
+                'num_hidden': 10,   # number of hidden items to use for evaluation
                 'take_random_hidden': True
             },
             'use_gpu': False,

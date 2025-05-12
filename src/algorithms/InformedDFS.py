@@ -33,6 +33,9 @@ class IdfsSolver(Algorithm):
                         if self.check_partial_solution(partial_solution[-max_W:], items, segments, constraints): # optimization: check only the last max_W items
                             stack.append(new_partial_solution)
 
+        print(f"[IdfsSolver] No solution found.")
+        return None  # No solution found
+
 
     def check_partial_solution(self, partial_solution, items, segments, constraints: List[Constraint]):
         for constraint in constraints:
