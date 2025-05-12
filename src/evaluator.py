@@ -242,8 +242,8 @@ class Evaluator:
         if s is None and not preprocess:
             recomms = solver.solve(candidates, candidates_segments, constraints, N)
         elif s is None and preprocess:
-            candidates = preprocessor.preprocess_items(candidates, candidates_segments, constraints, N)
-            recomms = solver.solve(candidates, candidates_segments, constraints, N)
+            filtered_candidates = preprocessor.preprocess_items(candidates, candidates_segments, constraints, N)
+            recomms = solver.solve(filtered_candidates, candidates_segments, constraints, N)
         else:
             recomms = solver.solve_by_slicing(preprocessor, candidates, candidates_segments, constraints, N=N, slice_size=s)
         elapsed = (time.perf_counter() - start)*1000 # in ms
