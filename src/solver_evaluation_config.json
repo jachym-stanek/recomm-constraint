@@ -1,0 +1,13 @@
+{
+  "split": {
+    "movielens": {
+      "train_ratio": 0.999
+    },
+    "industrial_dataset1": {
+      "train_ratio": 0.9999
+    }
+  },
+  "recommendations": {
+    "num_hidden": 1
+  }
+}

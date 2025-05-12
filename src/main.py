@@ -59,7 +59,7 @@ def main():
 
 def evaluate_solvers_on_id1():
     start_time = time.time()
-    settings = Settings()
+    settings = Settings(config_file="solver_evaluation_config.json")
     settings.set_dataset_in_use('industrial_dataset1')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
@@ -101,7 +101,7 @@ def evaluate_solvers_on_id1():
 
 def evaluate_solvers_on_movielens():
     start_time = time.time()
-    settings = Settings()
+    settings = Settings(config_file="solver_evaluation_config.json")
     settings.set_dataset_in_use('movielens')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
@@ -195,5 +195,5 @@ if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
     # main()
     # measure_changes_with_diversity_constraints()
-    evaluate_solvers_on_id1()
-    # evaluate_solvers_on_movielens()
+    # evaluate_solvers_on_id1()
+    evaluate_solvers_on_movielens()
