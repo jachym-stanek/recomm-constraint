@@ -51,11 +51,14 @@ def main():
 
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
 
+    results = experiment_runner.run_experiments_on_model_parameters(regularizations, nearest_neighbors, 'regularization',
+                                                                    'nearest_neighbors',
+                                                                    use_approximate_model=False,
+                                                                    retrain_every_rewrite=False)
+
     # results = experiment_runner.run_experiments_on_model_parameters(num_factors, nearest_neighbors, 'num_factors', 'nearest_neighbors',
     #                                                                 use_approximate_model=False, retrain_every_rewrite=False)
 
-
-    evaluate_solvers_on_id1()
 
 def evaluate_solvers_on_id1():
     start_time = time.time()
@@ -193,7 +196,7 @@ def measure_changes_with_diversity_constraints():
 
 if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
-    # main()
+    main()
     # measure_changes_with_diversity_constraints()
     # evaluate_solvers_on_id1()
-    evaluate_solvers_on_movielens()
+    # evaluate_solvers_on_movielens()

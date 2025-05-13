@@ -1075,6 +1075,7 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         results["normal"]["time"] = (time.time() - start_time_normal)*1000
         results["normal"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
         results["normal"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        results["normal"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
 
     start_time_preprocessing = time.time()
     filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
@@ -1082,6 +1083,7 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
     results["preprocessing"]["time"] = (time.time() - start_time_preprocessing)*1000
     results["preprocessing"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
     results["preprocessing"]["score"] = sum([items[item_id] for item_id in solution.values()])
+    results["preprocessing"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
 
     start_time_preprocessing = time.time()
     filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
@@ -1089,6 +1091,7 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
     results["preprocessing_first_feasible"]["time"] = (time.time() - start_time_preprocessing)*1000
     results["preprocessing_first_feasible"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
     results["preprocessing_first_feasible"]["score"] = sum([items[item_id] for item_id in solution.values()])
+    results["preprocessing_first_feasible"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
 
     for s in slice_sizes:
         # try:
@@ -1099,6 +1102,7 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         results["slicing"][f"{s}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["slicing"][f"{s}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
         results["slicing"][f"{s}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        results["slicing"][f"{s}"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
         # except Exception as e:
         #     print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
 
@@ -1110,6 +1114,7 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         results["slicing_look_ahead"][f"{s}"]["time"] = (time.time() - start_time_partitioning)*1000
         results["slicing_look_ahead"][f"{s}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
         results["slicing_look_ahead"][f"{s}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        results["slicing_look_ahead"][f"{s}"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
 
     if verbose:
         print(f"\n=== {test_name} ===")

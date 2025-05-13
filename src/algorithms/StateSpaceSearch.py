@@ -35,9 +35,11 @@ class StateSpaceSolver(Algorithm):
     The solver runs for a maximum of `time_limit` seconds and returns the best solution found.
     """
 
-    def __init__(self, name="StateSpace", description="State Space Search Solver", verbose=True, time_limit=5.0):
+    def __init__(self, name="StateSpace", description="State Space Search Solver", verbose=True, time_limit=5.0,
+                 max_iterations_no_improvement=1000):
         super().__init__(name, description, verbose)
         self.time_limit = time_limit  # in seconds
+        self.max_iterations_no_improvement = max_iterations_no_improvement
 
     def solve(self, items: dict, segments: dict, constraints: list, N: int, already_recommended_items=None):
         """
@@ -54,28 +56,30 @@ class StateSpaceSolver(Algorithm):
 
         # initial solution: choose top-N scoring items if available, otherwise fill randomly
         sorted_items = sorted(candidate_item_ids, key=lambda i: items[i], reverse=True)
-        if len(sorted_items) >= N:
-            current_state = sorted_items[:N]
-        else:
-            current_state = sorted_items + random.sample(candidate_item_ids, N - len(sorted_items))
 
+        # max score = N most scoring items
+        max_score = sum(items[i] for i in sorted_items[:N])
+
+        current_state = sorted_items[:N]
         best_state = current_state[:]
-        best_value = self.evaluate_state(best_state, items, segments, constraints)
+        best_value = self.evaluate_state(best_state, items, segments, constraints, max_score)
 
         # parameters for simulated annealing:
         T0 = 1.0  # initial temperature
         T_min = 1e-3
-        alpha = 0.995  # cooling rate
+        alpha = 0.999  # cooling rate
         T = T0
 
         iterations = 0
+        iterations_no_improvement = 0
 
-        while time.time() - start_time < self.time_limit:
+        while time.time() - start_time < self.time_limit and T > T_min and iterations_no_improvement < self.max_iterations_no_improvement:
             iterations += 1
+            iterations_no_improvement += 1
             # Generate a neighbor by a random move (swap or replacement)
             neighbor = self.random_neighbor(current_state, candidate_item_ids)
-            neighbor_value = self.evaluate_state(neighbor, items, segments, constraints)
-            current_value = self.evaluate_state(current_state, items, segments, constraints)
+            neighbor_value = self.evaluate_state(neighbor, items, segments, constraints, max_score)
+            current_value = self.evaluate_state(current_state, items, segments, constraints, max_score)
             delta = neighbor_value - current_value
 
             # accept move if better or with probability if worse
@@ -83,10 +87,11 @@ class StateSpaceSolver(Algorithm):
                 current_state = neighbor[:]
 
             # update best solution if improved
-            current_obj = self.evaluate_state(current_state, items, segments, constraints)
+            current_obj = self.evaluate_state(current_state, items, segments, constraints, max_score)
             if current_obj > best_value:
                 best_value = current_obj
                 best_state = current_state[:]
+                iterations_no_improvement = 0  # Reset counter
                 if self.verbose:
                     print(f"[{self.name}] Iteration {iterations}: New best value: {best_value:.2f}")
 
@@ -94,27 +99,33 @@ class StateSpaceSolver(Algorithm):
             T = max(T_min, T * alpha)
 
         if self.verbose:
-            print(f"[{self.name}] Finished after {iterations} iterations and {(time.time() - start_time):.2f} seconds.")
+            reason = "time limit"
+            if T <= T_min:
+                reason = "temperature cooled down"
+            elif iterations_no_improvement >= self.max_iterations_no_improvement:
+                reason = "max iterations without improvement"
+            print(
+                f"[{self.name}] Finished after {iterations} iterations and {(time.time() - start_time):.2f} seconds. Reason: {reason}. Final T: {T:.4f}")
 
         # return as a dictionary mapping position to item_id (positions are 0-indexed)
         return {pos: item for pos, item in enumerate(best_state)}
 
-    def evaluate_state(self, state, items, segments, constraints):
+    def evaluate_state(self, state, items, segments, constraints, max_score):
         """Compute the objective value of the state: sum(scores) - penalty"""
         total_score = sum(items[item] for item in state)
-        total_penalty = self.compute_total_penalty(state, segments, constraints)
+        total_penalty = self.compute_total_penalty(state, segments, constraints, max_score)
         return total_score - total_penalty
 
-    def compute_total_penalty(self, state, segments, constraints):
+    def compute_total_penalty(self, state, segments, constraints, max_score):
         """Compute total penalty for all constraints for a given state (state is a list of item_ids)"""
         penalty = 0.0
         for c in constraints:
-            penalty += self.compute_penalty_for_constraint(c, state, segments)
+            penalty += self.compute_penalty_for_constraint(c, state, segments, max_score)
         return penalty
 
-    def compute_penalty_for_constraint(self, c, state, segments):
+    def compute_penalty_for_constraint(self, c, state, segments, max_score):
         """Compute penalty for a single constraint based on its type"""
-        scale = self.get_scale(c)
+        scale = c.weight * max_score
         penalty = 0.0
         N = len(state)
 
@@ -123,20 +134,20 @@ class StateSpaceSolver(Algorithm):
             win = c.window_size
             for i in range(0, N - win + 1):
                 window = state[i:i + win]
-                count = sum(1 for item in window if item in segments[c.segment_id])
+                count = sum(1 for item in window if item in segments[c.label])
                 violation = max(0, c.min_items - count)
                 penalty += violation * scale
         elif isinstance(c, MaxItemsPerSegmentConstraint):
             win = c.window_size
             for i in range(0, N - win + 1):
                 window = state[i:i + win]
-                count = sum(1 for item in window if item in segments[c.segment_id])
+                count = sum(1 for item in window if item in segments[c.label])
                 violation = max(0, count - c.max_items)
                 penalty += violation * scale
         elif isinstance(c, ItemFromSegmentAtPositionConstraint):
             pos = c.position - 1  # convert to 0-indexed
             if pos < N:
-                if state[pos] not in segments[c.segment_id]:
+                if state[pos] not in segments[c.label]:
                     penalty += 1 * scale
             else:
                 penalty += 1 * scale

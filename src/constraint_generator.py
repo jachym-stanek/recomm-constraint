@@ -141,7 +141,7 @@ class ConstraintGenerator:
                 segmentation_property = random.choice(segmentation_properties)
                 if len(segments) > 0:
                     num_segments = sum(1 for seg in segments.values() if seg.property == segmentation_property) # make sure constraint is feasible
-                    max_per_window = math.ceil(window_size//num_segments) if num_segments > 0 else 1
+                    max_per_window = math.ceil(window_size/num_segments) if num_segments > 0 else 1
                 else:
                     max_per_window = window_size
                 min_items = random.randint(1, max_per_window)

@@ -254,48 +254,50 @@ if __name__ == "__main__":
     # results_file = "results_id1_nn_vs_b.txt"
     # results_file = "results_id1_reg_vs_nn.txt"
     # results_file = "results_movielens_factors_vs_nn_N10.txt"
-    # records: List[Record] = []
-    # with open(results_file) as f:
-    #     for params, metrics in map(eval, f):
-    #         records.append((params, metrics))
-    #
-    # skipped_values = {"bm25_B": [0.1, 0.6, 1.0, 1.5],
-    #                   "num_iterations": [10],
-    #                   "nearest_neighbors": [1, 8, 15, 30, 70, 150],
-    #                   "num_factors": [1, 2],
-    #                   "regularization": [1000],}
-    #
-    # fig, _ = plot_metric_grid(
-    #     records,
-    #     param_a="num_factors",
-    #     param_b="nearest_neighbors",
-    #     param_a_label="Number of factors",
-    #     param_b_label="Nearest neighbors",
-    #     x_metric="average_recall",
-    #     y_metric="catalog_coverage",
-    #     omit=skipped_values,
-    #     labeler=lambda p, varying: str(p[varying]),  # annotate with varying value
-    #     figsize=(9, 7),
-    #     plot_panels="right"
-    # )
-    # plt.show()
-
-    results_file = "results1.txt"  # your file with nested solver metrics
-    records: List[SolverRecord] = []
+    results_file = "results_id1_regularization_vs_nn.txt"
+    records: List[Record] = []
     with open(results_file) as f:
-        for line in f:
-            # each line is a tuple of (params, solver_metrics)
-            # where solver_metrics is a dict of {solver_name: metrics}
-            params, solver_metrics = eval(line)
-            records.append((params, solver_metrics))
+        for params, metrics in map(eval, f):
+            records.append((params, metrics))
 
-    fig, _ = plot_solver_performance(
+    skipped_values = {"bm25_B": [0.1, 0.6, 1.0, 1.5],
+                      "num_iterations": [10],
+                      "nearest_neighbors": [1,2, 60, 200],
+                      "num_factors": [1, 2],
+                      "regularization": [1000],
+                      }
+
+    fig, _ = plot_metric_grid(
         records,
-        varying_param="N",  # or "N", "M", …
-        x_metric="constraint_satisfaction",
-        y_metric="time",
-        solvers=None,  # ⇢ all solvers in the file
-        labeler=lambda vp: f"{vp:.0f}",  # nice integer labels
-        figsize=(10, 7),
+        param_a="regularization",
+        param_b="nearest_neighbors",
+        param_a_label="Regularization",
+        param_b_label="Nearest neighbors",
+        x_metric="average_recall",
+        y_metric="catalog_coverage",
+        omit=skipped_values,
+        labeler=lambda p, varying: str(p[varying]),  # annotate with varying value
+        figsize=(9, 7),
+        plot_panels="left"
     )
     plt.show()
+
+    # results_file = "results1.txt"  # your file with nested solver metrics
+    # records: List[SolverRecord] = []
+    # with open(results_file) as f:
+    #     for line in f:
+    #         # each line is a tuple of (params, solver_metrics)
+    #         # where solver_metrics is a dict of {solver_name: metrics}
+    #         params, solver_metrics = eval(line)
+    #         records.append((params, solver_metrics))
+    #
+    # fig, _ = plot_solver_performance(
+    #     records,
+    #     varying_param="N",  # or "N", "M", …
+    #     x_metric="constraint_satisfaction",
+    #     y_metric="time",
+    #     solvers=None,  # ⇢ all solvers in the file
+    #     labeler=lambda vp: f"{vp:.0f}",  # nice integer labels
+    #     figsize=(10, 7),
+    # )
+    # plt.show()
