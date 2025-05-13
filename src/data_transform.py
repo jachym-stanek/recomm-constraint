@@ -10,7 +10,7 @@ from src.settings import Settings
 class DatasetTransformer:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.supported_datasets = ['movielens', 'industrial_dataset1']
+        self.supported_datasets = ['movielens', 'industrial_dataset1', 'industrial_dataset2']
 
     def transform(self, datasets_to_transform: list):
         for dataset_name in datasets_to_transform:
@@ -253,7 +253,7 @@ class DatasetTransformer:
 
         # combine interactions into a single dataframe
         bookmarks['interaction_type'] = 'bookmark'
-        bookmarks['interaction_value'] = 1.0
+        bookmarks['interaction_value'] = 1.0    # we leave interaction value to 1.0, final value will be value * weight
         bookmarks['source'] = 'implicit'
         bookmarks = bookmarks[['user_id', 'item_id', 'interaction_value', 'timestamp', 'interaction_type', 'source']]
         detail_views['interaction_type'] = 'detail_view'
@@ -298,11 +298,93 @@ class DatasetTransformer:
 
         print(f"[DatasetTransformer] Transformation complete. Transformed data saved in '{transformed_data_dir}'.")
 
+    def _transform_industrial_dataset2(self):
+        # all the data is in correct format, we just need to combine the interactions into a single file so that the
+        # standardized data aggregator can use it
+        self.settings.set_dataset_in_use('industrial_dataset2')
 
+        # Paths to raw data files
+        users_file = self.settings.dataset.get('users_file')
+        items_file = self.settings.dataset.get('items_file')
+        bookmarks_file = self.settings.dataset.get('bookmarks_file')
+        cart_additions_file = self.settings.dataset.get('cart_additions_file')
+        detail_views_file = self.settings.dataset.get('detail_views_file')
+        purchases_file = self.settings.dataset.get('purchases_file')
+        transformed_data_dir = self.settings.dataset.get('transformed_data_dir')
+
+        # Check if files exist
+        required_files = [bookmarks_file, cart_additions_file, detail_views_file, purchases_file]
+        for file in required_files:
+            if not os.path.exists(file):
+                raise FileNotFoundError(f"[DatasetTransformer] Required file '{file}' not found for Industrial Dataset 1.")
+
+        # Load raw data
+        bookmarks = pd.read_csv(bookmarks_file)
+        cart_additions = pd.read_csv(cart_additions_file)
+        detail_views = pd.read_csv(detail_views_file)
+        purchases = pd.read_csv(purchases_file)
+
+        # drop duplicates (where user_id and item_id are the same)
+        bookmarks = bookmarks.drop_duplicates(subset=['user_id', 'item_id'])
+        cart_additions = cart_additions.drop_duplicates(subset=['user_id', 'item_id'])
+        detail_views = detail_views.drop_duplicates(subset=['user_id', 'item_id'])
+        purchases = purchases.drop_duplicates(subset=['user_id', 'item_id'])
+
+        # combine interactions into a single dataframe
+        bookmarks['interaction_type'] = 'bookmark'
+        bookmarks['interaction_value'] = 1.0    # we leave interaction value to 1.0, final value will be value * weight
+        bookmarks['source'] = 'implicit'
+        bookmarks = bookmarks[['user_id', 'item_id', 'interaction_value', 'timestamp', 'interaction_type', 'source']]
+        cart_additions['interaction_type'] = 'cart_addition'
+        cart_additions['interaction_value'] = 1.0
+        cart_additions['source'] = 'implicit'
+        cart_additions = cart_additions[['user_id', 'item_id', 'interaction_value', 'timestamp', 'interaction_type', 'source']]
+        detail_views['interaction_type'] = 'detail_view'
+        detail_views['interaction_value'] = 1.0
+        detail_views['source'] = 'implicit'
+        detail_views = detail_views[['user_id', 'item_id', 'interaction_value', 'timestamp', 'interaction_type', 'source']]
+        purchases['interaction_type'] = 'purchase'
+        purchases['interaction_value'] = 1.0
+        purchases['source'] = 'implicit'
+        purchases = purchases[['user_id', 'item_id', 'interaction_value', 'timestamp', 'interaction_type', 'source']]
+        interactions = pd.concat([bookmarks, cart_additions, detail_views, purchases], ignore_index=True)
+
+        # save interactions to file
+        interactions_file = os.path.join(transformed_data_dir, 'interactions.csv')
+        interactions.to_csv(interactions_file, index=False)
+
+        # load data about users and items
+        users = pd.read_csv(users_file)
+        items = pd.read_csv(items_file)
+
+        # list user properties
+        user_properties = users.columns.tolist()
+        user_properties.remove('user_id')
+
+        # list item properties
+        item_properties = items.columns.tolist()
+        item_properties.remove('item_id')
+
+        # Create dataset_info.json
+        print("[DatasetTransformer] Creating dataset_info.json...")
+        dataset_info = {
+            'num_users': users.shape[0],
+            'num_items': items.shape[0],
+            'num_interactions': interactions.shape[0],
+            'user_properties': user_properties,
+            'item_properties': item_properties,
+            'interaction_types': interactions['interaction_type'].unique().tolist(),
+        }
+        dataset_info_file = os.path.join(transformed_data_dir, 'dataset_info.json')
+        with open(dataset_info_file, 'w') as f:
+            json.dump(dataset_info, f, indent=4)
+
+        print(f"[DatasetTransformer] Transformation complete. Transformed data saved in '{transformed_data_dir}'.")
 
 
 if __name__ == "__main__":
     settings = Settings() # Load default settings
     transformer = DatasetTransformer(settings)
-    transformer.transform(['movielens'])
+    # transformer.transform(['movielens'])
     # transformer.transform(['industrial_dataset1'])
+    transformer.transform(['industrial_dataset2'])

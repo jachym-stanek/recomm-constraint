@@ -90,7 +90,7 @@ def analyze_rating_matrix():
 
 
 def analyze_number_of_interactions():
-    # industrial dataset1
+    # === industrial dataset1 ===
     SETTINGS.set_dataset_in_use('industrial_dataset1')
     users_file = SETTINGS.dataset.get('users_file')
     items_file = SETTINGS.dataset.get('items_file')
@@ -141,7 +141,7 @@ def analyze_number_of_interactions():
     print(f"99th percentile: {percentiles[4]}")
 
 
-    # count movielens
+    # === movielens ===
     SETTINGS.set_dataset_in_use('movielens')
     users_file = SETTINGS.dataset.get('users_file')
     items_file = SETTINGS.dataset.get('items_file')
@@ -171,6 +171,60 @@ def analyze_number_of_interactions():
 
     # count number of interactions per item
     num_interactions_per_item = ratings.groupby('movieId')['userId'].size()
+    # count 1st percentile, 25th percentile, 50th percentile, 75th percentile, 99th percentile
+    percentiles = np.percentile(num_interactions_per_item, [1, 25, 50, 75, 99])
+    print("Percentiles of number of interactions per item:")
+    print(f"1st percentile: {percentiles[0]}")
+    print(f"25th percentile: {percentiles[1]}")
+    print(f"50th percentile: {percentiles[2]}")
+    print(f"75th percentile: {percentiles[3]}")
+    print(f"99th percentile: {percentiles[4]}")
+
+
+    # === industrial dataset2 ===
+    SETTINGS.set_dataset_in_use('industrial_dataset2')
+    users_file = SETTINGS.dataset.get('users_file')
+    items_file = SETTINGS.dataset.get('items_file')
+    bookmarks_file = SETTINGS.dataset.get('bookmarks_file')
+    cart_additions_file = SETTINGS.dataset.get('cart_additions_file')
+    detail_views_file = SETTINGS.dataset.get('detail_views_file')
+    purchases_file = SETTINGS.dataset.get('purchases_file')
+    users = pd.read_csv(users_file)
+    items = pd.read_csv(items_file)
+    bookmarks = pd.read_csv(bookmarks_file)
+    cart_additions = pd.read_csv(cart_additions_file)
+    detail_views = pd.read_csv(detail_views_file)
+    purchases = pd.read_csv(purchases_file)
+
+    num_users = users['user_id'].nunique()
+    num_items = items['item_id'].nunique()
+    num_bookmarks = len(bookmarks)
+    num_cart_additions = len(cart_additions)
+    num_detail_views = len(detail_views)
+    num_purchases = len(purchases)
+    print("\n=== Industrial dataset2 ===")
+    print(f"Number of users: {num_users}")
+    print(f"Number of items: {num_items}")
+    print(f"Number of bookmarks: {num_bookmarks}")
+    print(f"Number of cart additions: {num_cart_additions}")
+    print(f"Number of detail views: {num_detail_views}")
+    print(f"Number of purchases: {num_purchases}")
+    print(f"Total number of interactions: {num_bookmarks + num_cart_additions + num_detail_views + num_purchases}")
+
+    # count number of interactions (bookmarks + cart additions + detail views + purchases) per user
+    interactions = pd.concat([bookmarks, cart_additions, detail_views, purchases], ignore_index=True)
+    num_interactions_per_user = interactions.groupby('user_id').size() # multiple interactions with the same item are counted
+    # count 1st percentile, 25th percentile, 50th percentile, 75th percentile, 99th percentile
+    percentiles = np.percentile(num_interactions_per_user, [1, 25, 50, 75, 99])
+    print("Percentiles of number of interactions per user:")
+    print(f"1st percentile: {percentiles[0]}")
+    print(f"25th percentile: {percentiles[1]}")
+    print(f"50th percentile: {percentiles[2]}")
+    print(f"75th percentile: {percentiles[3]}")
+    print(f"99th percentile: {percentiles[4]}")
+
+    # count number of interactions per item
+    num_interactions_per_item = interactions.groupby('item_id')['user_id'].size()
     # count 1st percentile, 25th percentile, 50th percentile, 75th percentile, 99th percentile
     percentiles = np.percentile(num_interactions_per_item, [1, 25, 50, 75, 99])
     print("Percentiles of number of interactions per item:")

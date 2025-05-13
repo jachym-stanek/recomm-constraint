@@ -45,12 +45,24 @@ class Settings:
                     'purchases_file': '../data/industrial_dataset1/purchases.csv',
                     'rating_matrix_file': '../data/industrial_dataset1/industrial_dataset1_rating_matrix.npz',
                     'info_file': '../data/industrial_dataset1/dataset_info.json',
+                },
+                'industrial_dataset2': {
+                    'transformed_data_dir': '../data/industrial_dataset2',
+                    'users_file': '../data/industrial_dataset2/users.csv',
+                    'items_file': '../data/industrial_dataset2/items.csv',
+                    'bookmarks_file': '../data/industrial_dataset2/bookmarks.csv',
+                    'cart_additions_file': '../data/industrial_dataset2/cart_additions.csv',
+                    'detail_views_file': '../data/industrial_dataset2/detail_views.csv',
+                    'purchases_file': '../data/industrial_dataset2/purchases.csv',
+                    'rating_matrix_file': '../data/industrial_dataset2/industrial_dataset2_rating_matrix.npz',
+                    'info_file': '../data/industrial_dataset2/dataset_info.json',
                 }
 
             },
             'aggregation_settings': {
                 'movielens': 'explicit_only',  # Options: explicit_only, implicit_only, explicit_and_implicit
                 'industrial_dataset1': 'implicit_only',
+                'industrial_dataset2': 'implicit_only',
             },
             'interaction_weights': {
                 'movielens': {
@@ -60,6 +72,12 @@ class Settings:
                     'bookmark': 0.5,
                     'detail_view': 0.25,
                     'purchase': 0.75,
+                },
+                'industrial_dataset2': {
+                    'bookmark': 0.5,
+                    'cart_addition': 0.75,
+                    'detail_view': 0.25,
+                    'purchase': 1.0,
                 }
             },
             'segmentation': {
@@ -73,6 +91,10 @@ class Settings:
                     'random_state': 10,
                 },
                 'industrial_dataset1': {
+                    'train_ratio': 0.999,
+                    'random_state': 10,
+                },
+                'industrial_dataset2': {
                     'train_ratio': 0.999,
                     'random_state': 10,
                 }
@@ -92,6 +114,7 @@ class Settings:
             'min_relevant_items': { # minimum is 2 - one hidden and one for finding similar items
                 'movielens': 2,
                 'industrial_dataset1': 2,
+                'industrial_dataset2': 2,
             }
         }
 
