@@ -55,11 +55,12 @@ class SolverResults:
 
 
 class Evaluator:
-    def __init__(self, settings: Settings, segmentation_extractor: SegmentationExtractor):
+    def __init__(self, settings: Settings, segmentation_extractor: SegmentationExtractor, supress_warnings: bool = False):
         self.num_hidden = settings.recommendations['num_hidden']
         self.log_every = settings.log_every
         self.preprocessor = ItemPreprocessor(verbose=False)
         self.segmentation_extractor = segmentation_extractor
+        self.supress_warnings = supress_warnings
 
     def evaluate(
         self,
@@ -214,7 +215,8 @@ class Evaluator:
         candidates = {item: score for item, score in zip(inner_recomms, scores)}
         num_candidates = len(candidates)
         if num_candidates < N:
-            print(f"[Evaluator] WARNING: fewer than {N} candidates found for user {user_idx}.")
+            if not self.supress_warnings:
+                print(f"[Evaluator] WARNING: fewer than {N} candidates found for user {user_idx}.")
             return [], 0, {}
 
         candidates_segments = segmentation_extractor.get_segments_dict_for_recomms(candidates)

@@ -77,7 +77,7 @@ class ExperimentRunner(object):
         segmentation_extractor = SegmentationExtractor(self.settings)
         segmentation_extractor.extract_segments(tested_item_properties)
 
-        evaluator = Evaluator(self.settings, segmentation_extractor)
+        evaluator = Evaluator(self.settings, segmentation_extractor, supress_warnings=True)
         model = self._get_model_from_params_rewrite(model_params)
         model.train(self.train_dataset)
         precomputed_neighborhoods = model.item_knn.compute_neighborhoods_chunked(model.item_factors)

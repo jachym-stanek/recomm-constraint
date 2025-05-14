@@ -165,6 +165,7 @@ notes.txt
 src/results*.txt
 src/results*.csv
 src/*results.txt
+src/experiments/*results.txt
 
 # exclude the results plots
 src/*.png
