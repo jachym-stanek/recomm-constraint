@@ -119,8 +119,9 @@ def evaluate_solvers_on_movielens():
     train_dataset = data_splitter.get_train_data()
     test_dataset = data_splitter.get_test_data()
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
-    solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False),
-               'ilp-slicing': IlpSolver(verbose=False)} # not evaluating CP solver because it cannot handle soft constraints
+    ILP_time_limit = 5 # seconds
+    solvers = {'ilp': IlpSolver(verbose=False, time_limit=ILP_time_limit), 'ilp-preprocessing': IlpSolver(verbose=False, time_limit=ILP_time_limit),
+               'ilp-slicing': IlpSolver(verbose=False, time_limit=ILP_time_limit)} # not evaluating CP solver because it cannot handle soft constraints
     num_recomms_values = [10, 15, 20, 30, 50]
     num_candidates_values = [20, 30, 50, 100, 200, 300]
     item_properties = ['genres', 'title', 'year']
