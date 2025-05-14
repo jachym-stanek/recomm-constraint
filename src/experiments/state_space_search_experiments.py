@@ -127,8 +127,23 @@ def compare_state_space_and_ilp():
     segmentation_properties = ['test-prop1', 'test-prop2']
 
     state_space_solver = StateSpaceSolver(verbose=False, time_limit=10)
-    ilp_solver = IlpSolver(verbose=False)
+    ilp_solver = IlpSolver(verbose=False, time_limit=30)
     preprocessor = ItemPreprocessor(verbose=False)
+
+    constraints_lists = [
+        constraint_generator.generate_random_constraints(2, 10, None, None, segmentation_properties,
+                                                         weight_type="soft",
+                                                         exclude_specific=[ItemAtPositionConstraint,
+                                                                           ItemFromSegmentAtPositionConstraint]),
+        constraint_generator.generate_random_constraints(5, 10, None, None, segmentation_properties,
+                                                         weight_type="soft",
+                                                         exclude_specific=[ItemAtPositionConstraint,
+                                                                           ItemFromSegmentAtPositionConstraint]),
+        constraint_generator.generate_random_constraints(10, 10, None, None, segmentation_properties,
+                                                         weight_type="soft",
+                                                         exclude_specific=[ItemAtPositionConstraint,
+                                                                           ItemFromSegmentAtPositionConstraint]),
+    ]
 
     results = {}
     for N in Ns:
@@ -142,24 +157,10 @@ def compare_state_space_and_ilp():
                              f'segment-3-{segmentation_properties[1]}': Segment('segment-3', segmentation_properties[1], *list(items.keys())[2::4]),
                              f'segment-4-{segmentation_properties[1]}': Segment('segment-4', segmentation_properties[1], *list(items.keys())[3::4])}
                 segments = {**segments1, **segments2}
-                constraints_lists = [
-                    constraint_generator.generate_random_constraints(2, N, items, segments, segmentation_properties,
-                                                                     weight_type="soft",
-                                                                     exclude_specific=[ItemAtPositionConstraint,
-                                                                                       ItemFromSegmentAtPositionConstraint]),
-                    constraint_generator.generate_random_constraints(5, N, items, segments, segmentation_properties,
-                                                                     weight_type="soft",
-                                                                     exclude_specific=[ItemAtPositionConstraint,
-                                                                                       ItemFromSegmentAtPositionConstraint]),
-                    constraint_generator.generate_random_constraints(10, N, items, segments, segmentation_properties,
-                                                                     weight_type="soft",
-                                                                     exclude_specific=[ItemAtPositionConstraint,
-                                                                                       ItemFromSegmentAtPositionConstraint]),
-                ]
                 for constraints in constraints_lists:
-                    results_ss = run_state_space_search_experiment(state_space_solver, items, segments, constraints, N)
                     results_ilp = run_ilp_test_all_approaches("", ilp_solver, preprocessor, items, segments, constraints, N, M, [2, 5, 8],
                             verbose=False, run_normal=False)
+                    results_ss = run_state_space_search_experiment(state_space_solver, items, segments, constraints, N)
                     res_key = f"N={N}, M={M}, S={S}, Constraints={constraints}"
                     results[res_key] = {
                         "state_space": results_ss,
@@ -170,11 +171,9 @@ def compare_state_space_and_ilp():
                     print(f"ILP: {results_ilp}")
                     print("-" * 50)
 
-    # save results to file
-    file_name = "state_space_vs_ilp_results.txt"
-    with open(file_name, "w") as f:
-        for key, value in results.items():
-            f.write(f"{key}: {value}\n")
+                     # save results to file
+                    with open("state_space_vs_ilp_results.txt", "a") as f:
+                        f.write(f"{res_key}: {results[res_key]}\n")
 
 
 if __name__ == "__main__":

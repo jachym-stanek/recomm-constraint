@@ -435,7 +435,7 @@ class GlobalMinItemsPerSegmentConstraint(Constraint):
     def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
         if not self.constraints:
             self.constraints = self.sub_constraints_from_segments(segments)
-        return min(c.satisfaction_ratio(solution, items, segments, already_recommended_items) for c in self.constraints)
+        return sum(c.satisfaction_ratio(solution, items, segments, already_recommended_items) for c in self.constraints) / len(self.constraints)
 
     def sub_constraints_from_segments(self, segments):
         constraints = []
@@ -508,7 +508,7 @@ class GlobalMaxItemsPerSegmentConstraint(Constraint):
     def satisfaction_ratio(self, solution, items, segments, already_recommended_items=None) -> float:
         if not self.constraints:
             self.constraints = self.sub_constraints_from_segments(segments)
-        return min(c.satisfaction_ratio(solution, items, segments, already_recommended_items) for c in self.constraints)
+        return sum(c.satisfaction_ratio(solution, items, segments, already_recommended_items) for c in self.constraints) / len(self.constraints)
 
     def sub_constraints_from_segments(self, segments):
         constraints = []

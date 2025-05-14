@@ -43,6 +43,15 @@ class ExperimentRunner(object):
         model = None
 
         for param1 in parameter1_values:
+            # if bm25 normalization is tested, we need to recreate the dataset
+            if parameter1_name == 'bm25_B':
+                print(f"[ExperimentRunner] Recreating dataset with bm25_B={param1}...")
+                data_splitter = DataSplitter(self.settings)
+                data_splitter.load_data(self.settings.dataset_name)
+                data_splitter.split_data(bmB=param1)
+                self.train_dataset = data_splitter.get_train_data()
+                self.test_dataset = data_splitter.get_test_data()
+
             if not retrain_every_rewrite:
                 model = self._get_model_from_params_rewrite({parameter1_name: param1}, use_approximate_model=use_approximate_model)
                 model.train(self.train_dataset)
@@ -103,15 +112,6 @@ class ExperimentRunner(object):
 
     def _run_experiment_for_particular_params(self, params_rewrite, model=None, use_approximate_model=False, solver=None):
         print(f"[ExperimentRunner] Running experiment with special params: {params_rewrite}...")
-
-        # if bm25 normalization is tested, we need to recreate the dataset
-        if 'bm25_B' in params_rewrite:
-            print(f"[ExperimentRunner] Recreating dataset with bm25_B={params_rewrite['bm25_B']}...")
-            data_splitter = DataSplitter(self.settings)
-            data_splitter.load_data(self.settings.dataset_name)
-            data_splitter.split_data(bmB=params_rewrite['bm25_B'])
-            self.train_dataset = data_splitter.get_train_data()
-            self.test_dataset = data_splitter.get_test_data()
 
         start_time = time.time()
 

@@ -18,8 +18,9 @@ RESULTS_FILE = "results" + str(max([int(re.search(r'results(\d+)\.txt', f).group
 def main():
     start_time = time.time()
     settings = Settings()
-    settings.set_dataset_in_use('industrial_dataset1')
+    # settings.set_dataset_in_use('industrial_dataset1')
     # settings.set_dataset_in_use('movielens')
+    settings.set_dataset_in_use('industrial_dataset2')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
     data_splitter.split_data()
@@ -39,7 +40,7 @@ def main():
     # num_trees = [2, 10, 50, 70, 100, 200]
     # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
-    nearest_neighbors = [1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 60, 70, 100, 150, 200]
+    nearest_neighbors = [1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 70, 100, 150, 200]
     # num_factors = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
     num_factors = [256, 512, 1024, 2048]
     bm_bs = [0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 4.0, 8, 16]
@@ -51,7 +52,13 @@ def main():
 
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
 
-    results = experiment_runner.run_experiments_on_model_parameters(regularizations, nearest_neighbors, 'regularization',
+    # results = experiment_runner.run_experiments_on_model_parameters(regularizations, nearest_neighbors, 'regularization',
+    #                                                                 'nearest_neighbors',
+    #                                                                 use_approximate_model=False,
+    #                                                                 retrain_every_rewrite=False)
+
+    results = experiment_runner.run_experiments_on_model_parameters(bm_bs, nearest_neighbors,
+                                                                    'bm25_B',
                                                                     'nearest_neighbors',
                                                                     use_approximate_model=False,
                                                                     retrain_every_rewrite=False)
