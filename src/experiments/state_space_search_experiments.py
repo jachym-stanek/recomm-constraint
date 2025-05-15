@@ -120,9 +120,8 @@ def basic_state_space_search_test():
 
 
 def compare_state_space_and_ilp():
-    Ns = [10, 20, 30, 40, 50]
-    Ms = [100, 200, 300, 400, 500]
-    Ss = [10, 20, 30, 40, 50, 100]
+    Ns = [10]
+    Ms = [20, 40, 60, 100, 200, 300, 400, 500]
     constraint_generator = ConstraintGenerator()
     segmentation_properties = ['test-prop1', 'test-prop2']
 
@@ -148,31 +147,32 @@ def compare_state_space_and_ilp():
     results = {}
     for N in Ns:
         for M in Ms:
-            for S in Ss:
-                items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
-                items_per_segment = M // S
-                segments1 = {f'segment-{i}-{segmentation_properties[0]}': Segment(f'segment-{i}', segmentation_properties[0], *list(items.keys())[i*items_per_segment:(i+1)*items_per_segment]) for i in range(S)}
-                segments2 = {f'segment-1-{segmentation_properties[1]}': Segment('segment-1', segmentation_properties[1], *list(items.keys())[0::4]),
-                             f'segment-2-{segmentation_properties[1]}': Segment('segment-2', segmentation_properties[1], *list(items.keys())[1::4]),
-                             f'segment-3-{segmentation_properties[1]}': Segment('segment-3', segmentation_properties[1], *list(items.keys())[2::4]),
-                             f'segment-4-{segmentation_properties[1]}': Segment('segment-4', segmentation_properties[1], *list(items.keys())[3::4])}
-                segments = {**segments1, **segments2}
-                for constraints in constraints_lists:
-                    results_ilp = run_ilp_test_all_approaches("", ilp_solver, preprocessor, items, segments, constraints, N, M, [2, 5, 8],
-                            verbose=False, run_normal=False)
-                    results_ss = run_state_space_search_experiment(state_space_solver, items, segments, constraints, N)
-                    res_key = f"N={N}, M={M}, S={S}, Constraints={constraints}"
-                    results[res_key] = {
-                        "state_space": results_ss,
-                        "ilp": results_ilp
-                    }
-                    print(f"Results for {res_key}:")
-                    print(f"State Space Search: {results_ss}")
-                    print(f"ILP: {results_ilp}")
-                    print("-" * 50)
+            items_per_segment = 20
+            S = M // items_per_segment
+            items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
 
-                     # save results to file
-                    with open("state_space_vs_ilp_results.txt", "a") as f:
+            segments1 = {f'segment-{i}-{segmentation_properties[0]}': Segment(f'segment-{i}', segmentation_properties[0], *list(items.keys())[i*items_per_segment:(i+1)*items_per_segment]) for i in range(S)}
+            segments2 = {f'segment-1-{segmentation_properties[1]}': Segment('segment-1', segmentation_properties[1], *list(items.keys())[0::4]),
+                         f'segment-2-{segmentation_properties[1]}': Segment('segment-2', segmentation_properties[1], *list(items.keys())[1::4]),
+                         f'segment-3-{segmentation_properties[1]}': Segment('segment-3', segmentation_properties[1], *list(items.keys())[2::4]),
+                         f'segment-4-{segmentation_properties[1]}': Segment('segment-4', segmentation_properties[1], *list(items.keys())[3::4])}
+            segments = {**segments1, **segments2}
+            for constraints in constraints_lists:
+                results_ilp = run_ilp_test_all_approaches("", ilp_solver, preprocessor, items, segments, constraints, N, M, [2, 5, 8],
+                        verbose=False, run_normal=False)
+                results_ss = run_state_space_search_experiment(state_space_solver, items, segments, constraints, N)
+                res_key = f"N={N}, M={M}, S={S}, Constraints={constraints}"
+                results[res_key] = {
+                    "state_space": results_ss,
+                    "ilp": results_ilp
+                }
+                print(f"Results for {res_key}:")
+                print(f"State Space Search: {results_ss}")
+                print(f"ILP: {results_ilp}")
+                print("-" * 50)
+
+                 # save results to file
+                with open("state_space_vs_ilp_results.txt", "a") as f:
                         f.write(f"{res_key}: {results[res_key]}\n")
 
 

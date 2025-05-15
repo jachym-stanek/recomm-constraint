@@ -84,10 +84,17 @@ def evaluate_solvers_on_id1():
     train_dataset = data_splitter.get_train_data()
     test_dataset = data_splitter.get_test_data()
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
-    solvers = {'ilp': IlpSolver(verbose=False), 'ilp-preprocessing': IlpSolver(verbose=False),
-               'ilp-slicing': IlpSolver(verbose=False)} # not evaluating CP solver because it cannot handle soft constraints
-    num_recomms_values = [10, 15, 20, 30, 50]
-    num_candidates_values = [20, 30, 50, 100]
+    ILP_time_limit = 5  # seconds
+    solvers = {
+        'ilp': IlpSolver(verbose=False, time_limit=ILP_time_limit),
+        'ilp-preprocessing': IlpSolver(verbose=False, time_limit=ILP_time_limit),
+        'ilp-slicing': IlpSolver(verbose=False, time_limit=ILP_time_limit),
+        'state_space': StateSpaceSolver(verbose=False),
+    } # not evaluating CP solver because it cannot handle soft constraints
+    num_recomms_values = [10, 15, 20, 25, 30]
+    # num_recomms_values = [10]
+    # num_candidates_values = [20, 30, 50, 100]
+    num_candidates_values = [60]
     item_properties = ['category_2', 'category_3', 'key_type']  # properties for industrial_dataset1
     constraint_generator = ConstraintGenerator()
     random_5_constraints = constraint_generator.generate_random_constraints(num_constraints=5, num_recommendations=10,
@@ -259,8 +266,8 @@ def measure_changes_with_diversity_constraints():
 
 if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
-    main()
+    # main()
     # measure_changes_with_diversity_constraints()
-    # evaluate_solvers_on_id1()
+    evaluate_solvers_on_id1()
     # evaluate_solvers_on_movielens()
     # evaluate_solvers_on_id2()

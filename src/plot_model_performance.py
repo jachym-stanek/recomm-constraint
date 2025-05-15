@@ -175,86 +175,13 @@ def plot_metric_grid(
     return fig, ax
 
 
-def plot_solver_performance(
-        data: Iterable[SolverRecord],
-        varying_param: str,
-        *,
-        solvers: Sequence[str] | None = None,  # choose which solvers to draw
-        x_metric: str = "constraint_satisfaction",
-        y_metric: str = "time",
-        figsize: Tuple[int, int] = (9, 7),
-        omit: Optional[Dict[str, Sequence[Any]]] = None,  # e.g. {"average_num_candidates": [1, 2]}
-        labeler: Optional[Callable[[Any], str]] = None,  # how to annotate points
-        scatter_kws: Optional[Dict[str, Any]] = None,  # matplotlib kwargs forwarded to plt.scatter
-):
-    """Draw one scatter‑line plot: every solver is a coloured line through
-    (x_metric, y_metric) pairs obtained for different values of `varying_param`."""
-
-    import matplotlib.pyplot as plt
-    from adjustText import adjust_text
-
-    scatter_kws = scatter_kws or {}
-    omit = {k: set(v) for k, v in (omit or {}).items()}
-
-    # Collect points grouped by solver
-    by_solver: Dict[str, List[Tuple[Any, float, float]]] = defaultdict(list)
-    for params, solver_metrics in data:
-        vp = params.get(varying_param)
-        if vp is None or vp in omit.get(varying_param, ()):
-            continue
-
-        for solver, m in solver_metrics.items():
-            if solvers is not None and solver not in solvers:
-                continue
-            if x_metric not in m or y_metric not in m:
-                continue
-            x, y = m[x_metric], m[y_metric]
-            by_solver[solver].append((vp, x, y))
-
-    if not by_solver:
-        raise ValueError("Nothing to plot – check varying_param / solvers / metrics.")
-
-    # Sort points of every solver by the varying parameter for prettier lines
-    for pts in by_solver.values():
-        pts.sort(key=lambda t: t[0])
-
-    # Drawing
-    fig, ax = plt.subplots(figsize=figsize)
-    texts = []
-
-    for solver, pts in sorted(by_solver.items()):
-        vps, xs, ys = zip(*pts)
-        line, = ax.plot(xs, ys, "-o", label=solver)
-        ax.scatter(xs, ys, **scatter_kws, color=line.get_color())
-
-        # annotate each point
-        for vp, x, y in pts:
-            lbl = labeler(vp) if labeler else str(vp)
-            txt = ax.text(x, y, lbl, fontsize="small", ha="left", va="bottom")
-            texts.append(txt)
-
-    adjust_text(
-        texts, ax=ax,
-        expand_points=(1.2, 1.4),
-        expand_text=(1.2, 1.4),
-        arrowprops=dict(arrowstyle="->", lw=.5, alpha=.6),
-        only_move={"points": "y", "text": "xy"},
-    )
-
-    ax.set_xlabel(x_metric.replace("_", " ").title())
-    ax.set_ylabel(y_metric.replace("_", " ").title())
-    ax.set_title(f"Solver performance – varying {varying_param}")
-    ax.legend()
-    fig.tight_layout()
-    return fig, ax
-
-
 if __name__ == "__main__":
     # results_file = "results_movielens_nearest_neighbors_vs_factors.txt"
     # results_file = "results_id1_nn_vs_b.txt"
     # results_file = "results_id1_reg_vs_nn.txt"
     # results_file = "results_movielens_factors_vs_nn_N10.txt"
-    results_file = "results_id1_regularization_vs_nn.txt"
+    # results_file = "results_id1_regularization_vs_nn.txt"
+    results_file = "results_id2_factors_vs_nn.txt"
     records: List[Record] = []
     with open(results_file) as f:
         for params, metrics in map(eval, f):
@@ -262,42 +189,22 @@ if __name__ == "__main__":
 
     skipped_values = {"bm25_B": [0.1, 0.6, 1.0, 1.5],
                       "num_iterations": [10],
-                      "nearest_neighbors": [1,2, 60, 200],
-                      "num_factors": [1, 2],
+                      "nearest_neighbors": [1,2, 15, 30],
+                      "num_factors": [1, 2, 4, 8],
                       "regularization": [1000],
                       }
 
     fig, _ = plot_metric_grid(
         records,
-        param_a="regularization",
+        param_a="num_factors",
         param_b="nearest_neighbors",
-        param_a_label="Regularization",
+        param_a_label="Number of factors",
         param_b_label="Nearest neighbors",
         x_metric="average_recall",
         y_metric="catalog_coverage",
         omit=skipped_values,
         labeler=lambda p, varying: str(p[varying]),  # annotate with varying value
-        figsize=(9, 7),
-        plot_panels="left"
+        # figsize=(9, 7),
+        plot_panels="both"
     )
     plt.show()
-
-    # results_file = "results1.txt"  # your file with nested solver metrics
-    # records: List[SolverRecord] = []
-    # with open(results_file) as f:
-    #     for line in f:
-    #         # each line is a tuple of (params, solver_metrics)
-    #         # where solver_metrics is a dict of {solver_name: metrics}
-    #         params, solver_metrics = eval(line)
-    #         records.append((params, solver_metrics))
-    #
-    # fig, _ = plot_solver_performance(
-    #     records,
-    #     varying_param="N",  # or "N", "M", …
-    #     x_metric="constraint_satisfaction",
-    #     y_metric="time",
-    #     solvers=None,  # ⇢ all solvers in the file
-    #     labeler=lambda vp: f"{vp:.0f}",  # nice integer labels
-    #     figsize=(10, 7),
-    # )
-    # plt.show()

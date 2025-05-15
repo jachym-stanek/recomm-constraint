@@ -1107,14 +1107,14 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         #     print(f"ERROR: Test Case N:{N}, M: {M}, p:{p}: {e}")
 
         # solve with look ahead
-        start_time_partitioning = time.time()
-        temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
-        solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, slice_size=s, look_ahead=True)
-        results["slicing_look_ahead"][f"{s}"] = dict()
-        results["slicing_look_ahead"][f"{s}"]["time"] = (time.time() - start_time_partitioning)*1000
-        results["slicing_look_ahead"][f"{s}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
-        results["slicing_look_ahead"][f"{s}"]["score"] = sum([items[item_id] for item_id in solution.values()])
-        results["slicing_look_ahead"][f"{s}"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
+        # start_time_partitioning = time.time()
+        # temp_item_segment_map = {item_id: seg_id for seg_id, segment in segments.items() for item_id in segment}
+        # solution = solver.solve_by_slicing(preprocessor, items, segments, constraints, N, slice_size=s, look_ahead=True)
+        # results["slicing_look_ahead"][f"{s}"] = dict()
+        # results["slicing_look_ahead"][f"{s}"]["time"] = (time.time() - start_time_partitioning)*1000
+        # results["slicing_look_ahead"][f"{s}"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
+        # results["slicing_look_ahead"][f"{s}"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        # results["slicing_look_ahead"][f"{s}"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
 
     if verbose:
         print(f"\n=== {test_name} ===")

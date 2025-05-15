@@ -114,7 +114,7 @@ class CpSolver(Algorithm):
         model = cp_model.CpModel()
         positions = list(range(1, N + 1))
 
-        # Decision variables: x[i, p] == 1 ⇔ item *i* placed at position *p*
+        # Decision variables: x[i, p] == 1 - item *i* placed at position *p*
         x: dict[tuple[str, int], cp_model.IntVar] = {
             (i, p): model.NewBoolVar(f"x_{i}_{p}") for i in items for p in positions
         }
