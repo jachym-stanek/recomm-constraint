@@ -7,7 +7,7 @@
       "train_ratio": 0.9999
     },
     "industrial_dataset2": {
-      "train_ratio": 0.9995
+      "train_ratio": 0.9999
     }
   },
   "recommendations": {

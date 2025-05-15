@@ -42,8 +42,8 @@ def main():
     # alphas = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
     # num_iterations = [1, 2, 3, 5, 8, 10, 15]
     nearest_neighbors = [1, 2, 4, 6, 8, 10, 15, 20, 30, 50, 70, 100, 150, 200]
-    # num_factors = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-    num_factors = [256, 512, 1024, 2048]
+    num_factors = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+    # num_factors = [256, 512, 1024, 2048]
     bm_bs = [0.0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 4.0, 8, 16]
     num_iterations = [1, 2, 3, 5, 8, 10, 15]
 
@@ -58,8 +58,14 @@ def main():
     #                                                                 use_approximate_model=False,
     #                                                                 retrain_every_rewrite=False)
 
-    results = experiment_runner.run_experiments_on_model_parameters(bm_bs, nearest_neighbors,
-                                                                    'bm25_B',
+    # results = experiment_runner.run_experiments_on_model_parameters(bm_bs, nearest_neighbors,
+    #                                                                 'bm25_B',
+    #                                                                 'nearest_neighbors',
+    #                                                                 use_approximate_model=False,
+    #                                                                 retrain_every_rewrite=False)
+
+    results = experiment_runner.run_experiments_on_model_parameters(num_factors, nearest_neighbors,
+                                                                    'num_factors',
                                                                     'nearest_neighbors',
                                                                     use_approximate_model=False,
                                                                     retrain_every_rewrite=False)
@@ -70,7 +76,7 @@ def main():
 
 def evaluate_solvers_on_id1():
     start_time = time.time()
-    settings = Settings(config_file="solver_evaluation_config.json")
+    settings = Settings(config_file="../settings/solver_evaluation_config.json")
     settings.set_dataset_in_use('industrial_dataset1')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
@@ -112,7 +118,7 @@ def evaluate_solvers_on_id1():
 
 def evaluate_solvers_on_id2():
     start_time = time.time()
-    settings = Settings(config_file="solver_evaluation_config.json")
+    settings = Settings(config_file="../settings/solver_evaluation_config.json")
     settings.set_dataset_in_use('industrial_dataset2')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
@@ -127,8 +133,9 @@ def evaluate_solvers_on_id2():
                 'ilp-slicing': IlpSolver(verbose=False, time_limit=ILP_time_limit),
                 'state_space': StateSpaceSolver(verbose=False),
                } # not evaluating CP solver because it cannot handle soft constraints
-    num_recomms_values = [10]
-    num_candidates_values = [20, 30, 50, 100]
+    num_recomms_values = [10, 15, 20, 25, 30]
+    # num_candidates_values = [20, 30, 50, 100]
+    num_candidates_values = [60]
     item_properties = ["custom_label_0","custom_label_2","brand","product_type"]  # properties for industrial_dataset2
     constraint_generator = ConstraintGenerator()
     random_5_constraints = constraint_generator.generate_random_constraints(num_constraints=5, num_recommendations=10,
@@ -159,7 +166,7 @@ def evaluate_solvers_on_id2():
 
 def evaluate_solvers_on_movielens():
     start_time = time.time()
-    settings = Settings(config_file="solver_evaluation_config.json")
+    settings = Settings(config_file="../settings/solver_evaluation_config.json")
     settings.set_dataset_in_use('movielens')
     data_splitter = DataSplitter(settings)
     data_splitter.load_data(settings.dataset_name)
@@ -252,8 +259,8 @@ def measure_changes_with_diversity_constraints():
 
 if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
-    # main()
+    main()
     # measure_changes_with_diversity_constraints()
     # evaluate_solvers_on_id1()
     # evaluate_solvers_on_movielens()
-    evaluate_solvers_on_id2()
+    # evaluate_solvers_on_id2()
