@@ -9,13 +9,13 @@ from src.constraints import *
 
 def filtered_items_per_number_of_segments():
     M = 200
-    N = 20
+    N = 5
     segmentation_property = 'test-prop'
     items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
     preprocessor = ItemPreprocessor(verbose=False)
     results = []
 
-    for S in [5, 10, 15, 20, 25, 30, 40, 50]:
+    for S in [5, 10, 15, 20, 25, 30, 35, 40]:
         print(f"Running test for S={S}")
         segments = {f'segment{i}-{segmentation_property}': Segment(f'segment{i}', segmentation_property,
                                            *list(items.keys())[i * (M // S):(i + 1) * (M // S)]) for i in range(S)}
@@ -24,7 +24,7 @@ def filtered_items_per_number_of_segments():
             MinSegmentsConstraint(segmentation_property, 2, 5)
         ]
         filtered_items = preprocessor.preprocess_items(items, segments, constraints, N)
-        results.append((S, len(filtered_items)))
+        results.append((S, M - len(filtered_items)))
 
     print(results)
     # plot results
@@ -37,7 +37,7 @@ def filtered_items_per_number_of_segments():
     # plt.title("Number of Filtered Items for Increasing Number of Segments in Candidate Items \n"
     #           "Using N=20, M=200, C={GlobalMaxItems, MinSegments}")
     plt.xlabel("Number of Segments in Candidate Items (|S|)")
-    plt.ylabel("Number of Remaining Items")
+    plt.ylabel("Number of Filtered Items")
     plt.tight_layout()
     plt.show()
 

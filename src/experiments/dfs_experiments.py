@@ -254,6 +254,40 @@ def idfs_speed_efficiency():
     plt.grid()
     plt.show()
 
+    constraints = [
+        [GlobalMaxItemsPerSegmentConstraint(segmentation_property, 3, 4),
+         MinSegmentsConstraint(segmentation_property, 3, 5)],
+    ]
+    results = dict()
+
+    for M in [10, 12, 15, 18, 19, 20, 21, 22]:
+        print(f"Running test for M={M}")
+        items = {f'item-{i}': i for i in range(1, M + 1)}
+        segments = {f'segment-{i}-{segmentation_property}': Segment(f'segment-{i}', segmentation_property,
+                                                                    *list(items.keys())[i * 10:(i + 1) * 10]) for i in
+                    range(M // 20)}
+        c_times = []
+        for c in constraints:
+            start_time = time.time()
+            solution = dfs_solver.solve(items, segments, c, N)
+            print(f"Solution: {solution}")
+            elapsed = (time.time() - start_time) * 1000
+            constraints_satisfied = all([constraint.check_constraint(solution, items, segments) for constraint in c]) if solution else False
+            print(f"Constraints satisfied: {constraints_satisfied}, Time: {elapsed} ms")
+            c_times.append(elapsed)
+        results[M] = sum(c_times) / len(c_times)
+
+    print("Results:")
+    print(results)
+
+    plt.plot(list(results.keys()), list(results.values()))
+    plt.xlabel("Number of Candidate Items", fontsize=14)
+    plt.ylabel("Time (ms)", fontsize=14)
+    plt.tick_params(axis="both", which="major", labelsize=12)
+    plt.tight_layout()
+    plt.grid()
+    plt.show()
+
 
 
 if __name__ == "__main__":

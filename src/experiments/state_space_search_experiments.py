@@ -3,10 +3,11 @@
 # This code in its current  state might not be runnable as it was not updated thoroughly after every refactoring.
 # It is meant to be used as a reference for the experiments conducted in the thesis.
 ############################################
-
+import os
 import random
 import time
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 
 from src.algorithms.ILP import IlpSolver
@@ -34,7 +35,7 @@ def run_state_space_search_experiment(solver, items, segments, constraints, N, v
         print(f"Score: {score}")
         print(f"Constraints satisfied: {constraints_satisfied}")
         print(f"Satisfaction score: {satisfaction_score}")
-    return {"time": elapsed, "score": score, "satisfaction_score": satisfaction_score}
+    return {"time": elapsed, "score": score, "satisfaction_score": satisfaction_score, "constraints_satisfied": constraints_satisfied}
 
 def basic_state_space_search_test():
     # Test 1 N=10, M=100, S=10
@@ -120,13 +121,15 @@ def basic_state_space_search_test():
 
 
 def compare_state_space_and_ilp():
-    Ns = [10]
-    Ms = [20, 40, 60, 100, 200, 300, 400, 500]
+    # Ns = [10]
+    Ns = [10, 15, 20, 25, 30, 40]
+    # Ms = [20, 40, 60, 100, 200, 300, 400, 500]
+    Ms = [300]
     constraint_generator = ConstraintGenerator()
     segmentation_properties = ['test-prop1', 'test-prop2']
 
     state_space_solver = StateSpaceSolver(verbose=False, time_limit=10)
-    ilp_solver = IlpSolver(verbose=False, time_limit=30)
+    ilp_solver = IlpSolver(verbose=False, time_limit=10)
     preprocessor = ItemPreprocessor(verbose=False)
 
     constraints_lists = [
@@ -147,7 +150,7 @@ def compare_state_space_and_ilp():
     results = {}
     for N in Ns:
         for M in Ms:
-            items_per_segment = 20
+            items_per_segment = 5
             S = M // items_per_segment
             items = {f'item-{i}': random.uniform(0, 1) for i in range(1, M + 1)}
 
@@ -159,7 +162,7 @@ def compare_state_space_and_ilp():
             segments = {**segments1, **segments2}
             for constraints in constraints_lists:
                 results_ilp = run_ilp_test_all_approaches("", ilp_solver, preprocessor, items, segments, constraints, N, M, [2, 5, 8],
-                        verbose=False, run_normal=False)
+                        verbose=False, run_normal=True)
                 results_ss = run_state_space_search_experiment(state_space_solver, items, segments, constraints, N)
                 res_key = f"N={N}, M={M}, S={S}, Constraints={constraints}"
                 results[res_key] = {
@@ -172,8 +175,45 @@ def compare_state_space_and_ilp():
                 print("-" * 50)
 
                  # save results to file
-                with open("state_space_vs_ilp_results.txt", "a") as f:
-                        f.write(f"{res_key}: {results[res_key]}\n")
+                save_results_to_file(M, N, [str(c) for c in constraints], results_ilp, results_ss, "state_space_vs_ilp_results.csv")
+
+
+def save_results_to_file(M, N, constraints, results_ILP, results_SS, filename):
+    with open("state_space_vs_ilp_results.csv", "a") as f:
+        # transform results to a pandas dataframe
+        rows = []
+        for solver, solver_result in results_ILP.items():
+            if len(solver_result) == 0:
+                continue
+            if solver == "slicing":
+                for slicing_solver, slicing_result in solver_result.items():
+                    rows.append({"useridx": "test-user", "M": M, "N": N, "constraints": constraints, "solver": f"ilp-slicing-s={slicing_solver}",
+                                 "time_ms": slicing_result["time"], "score": slicing_result["score"],
+                                 "constraint_satisfaction": slicing_result["satisfaction_score"],
+                                 "empty": slicing_result["satisfaction_score"] == 0})
+            else:
+                if solver == "normal":
+                    name = "ilp"
+                elif solver == "preprocessing":
+                    name = "ilp-preprocessing"
+                else:
+                    name = solver
+                rows.append({"useridx": "test-user","M": M, "N": N, "constraints": constraints, "solver": name,
+                             "time_ms": solver_result["time"], "score": solver_result["score"],
+                             "constraint_satisfaction": solver_result["satisfaction_score"],
+                             "empty": solver_result["satisfaction_score"] == 0})
+        rows.append({"useridx": "test-user","M": M, "N": N, "constraints": constraints, "solver": "StateSpace",
+                     "time_ms": results_SS["time"], "score": results_SS["score"],
+                     "constraint_satisfaction": results_SS["satisfaction_score"],
+                     "empty": results_SS["satisfaction_score"] == 0})
+        df = pd.DataFrame(rows)
+
+        header_needed = (not os.path.exists(filename)  # write header we do the first write
+                         or os.path.getsize(filename) == 0)
+        df.to_csv(filename,
+                      mode="a",
+                      index=False,
+                      header=header_needed)
 
 
 if __name__ == "__main__":

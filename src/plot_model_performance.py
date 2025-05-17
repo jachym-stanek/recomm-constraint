@@ -154,7 +154,7 @@ def plot_metric_grid(
             )
 
         # assume plotting recall@N and coverage
-        axis.set_xlabel("Average recall@N")
+        axis.set_xlabel("Average recall@10")
         axis.set_ylabel("Catalog coverage")
         axis.set_title(title_tmpl.format(fixed_label, varying_label))
         axis.legend()
@@ -176,11 +176,6 @@ def plot_metric_grid(
 
 
 if __name__ == "__main__":
-    # results_file = "results_movielens_nearest_neighbors_vs_factors.txt"
-    # results_file = "results_id1_nn_vs_b.txt"
-    # results_file = "results_id1_reg_vs_nn.txt"
-    # results_file = "results_movielens_factors_vs_nn_N10.txt"
-    # results_file = "results_id1_regularization_vs_nn.txt"
     results_file = "results_id2_factors_vs_nn.txt"
     records: List[Record] = []
     with open(results_file) as f:
@@ -188,8 +183,8 @@ if __name__ == "__main__":
             records.append((params, metrics))
 
     skipped_values = {"bm25_B": [0.1, 0.6, 1.0, 1.5],
-                      "num_iterations": [10],
-                      "nearest_neighbors": [1,2, 15, 30],
+                      # "num_iterations": [10],
+                      "nearest_neighbors": [1, 2, 15, 30, 70],
                       "num_factors": [1, 2, 4, 8],
                       "regularization": [1000],
                       }
@@ -198,13 +193,13 @@ if __name__ == "__main__":
         records,
         param_a="num_factors",
         param_b="nearest_neighbors",
-        param_a_label="Number of factors",
+        param_a_label="Number of latent factors",
         param_b_label="Nearest neighbors",
         x_metric="average_recall",
         y_metric="catalog_coverage",
         omit=skipped_values,
         labeler=lambda p, varying: str(p[varying]),  # annotate with varying value
-        # figsize=(9, 7),
-        plot_panels="both"
+        figsize=(9, 7),
+        plot_panels="left"
     )
     plt.show()

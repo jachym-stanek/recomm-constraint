@@ -869,11 +869,11 @@ def ILP_2D_constraints_test():
     print("=============== Test 2 - mix 1D and 2D constraints ===============")
     segment1 = Segment('segment1', 'test-property', "item1", "item3", "item5", "item7", "item9", "item11", "item13", "item15", "item17", "item19")
     segment2 = Segment('segment2', 'test-property', "item2", "item4", "item6", "item8", "item10", "item12", "item14", "item16")
-    segments_id_dict = {segment1.id: segment1, segment2.id: segment2}
+    segments_id_dict = {segment1.label: segment1, segment2.label: segment2}
 
     constraints1 = [
-        MinItemsPerSegmentConstraint(segment_id='segment1', min_items=2, window_size=5),
-        MaxItemsPerSegmentConstraint(segment_id='segment1', max_items=4, window_size=5),
+        MinItemsPerSegmentConstraint(segment_id='segment1', item_property="test-property", min_items=2, window_size=5),
+        MaxItemsPerSegmentConstraint(segment_id='segment1', item_property="test-property", max_items=4, window_size=5),
     ]
     constraints2 = [GlobalMinItemsPerSegmentConstraint(segmentation_property='test-property', min_items=1, weight=1.0, window_size=2)]
     constraints1D = [constraints1, constraints2, []]
@@ -911,7 +911,7 @@ def ILP_2D_constraints_test():
     items = [items1, items2, items3, items4]
     segment1 = Segment('segment1', 'test-property', *list(items1.keys())[:50])
     segment2 = Segment('segment2', 'test-property', *list(items1.keys())[50:])
-    segments = {segment1.id: segment1, segment2.id: segment2}
+    segments = {segment1.label: segment1, segment2.label: segment2}
     constraints = [[GlobalMinItemsPerSegmentConstraint('test-property', 1, 3)], [], [], []]
     constraints2D = [ItemUniqueness2D(width=10, height=3)]
 
@@ -943,6 +943,7 @@ def ILP_2D_constraints_test():
 
 def ILP_2D_constraints_test_preprocessing():
     solver = IlpSolver(verbose=False)
+    preprocessor = ItemPreprocessor(verbose=True)
 
     # test preprocessing works for 2D item uniqueness constraint
     print("=============== Test 1 - item uniqueness only ===============")
@@ -955,7 +956,7 @@ def ILP_2D_constraints_test_preprocessing():
     segments = {}
     item_segment_map = {}
     constraints2D = [ItemUniqueness2D(width=5, height=2)]
-    filtered_items = solver.preprocess_items_2D(items, segments, constraints, constraints2D, N, item_segment_map)
+    filtered_items = preprocessor.preprocess_items_2D(items, segments, constraints, constraints2D, N, item_segment_map)
 
     print(f"Filtered items lens: {[len(filtered) for filtered in filtered_items]}")
     for i, filtered in enumerate(filtered_items):
@@ -1057,6 +1058,8 @@ def count_2D_score(result, items, N):
     return total_score
 
 def check_constraints(recommended_items, items, segments, constraints):
+    if not recommended_items:
+        return False
     all_constraints_satisfied = True
     for constraint in constraints:
         if not constraint.check_constraint(recommended_items, items, segments):
@@ -1074,7 +1077,7 @@ def run_test_all_approaches(test_name, solver, preprocessor, items, segments, co
         solution = solver.solve(items, segments, constraints, N)
         results["normal"]["time"] = (time.time() - start_time_normal)*1000
         results["normal"]["constraints_satisfied"] = check_constraints(solution, items, segments, constraints)
-        results["normal"]["score"] = sum([items[item_id] for item_id in solution.values()])
+        results["normal"]["score"] = sum([items[item_id] for item_id in solution.values()] if solution else 0)
         results["normal"]["satisfaction_score"] = total_satisfaction(solution, items, segments, constraints)
 
     start_time_preprocessing = time.time()
@@ -1691,7 +1694,7 @@ if __name__ == "__main__":
     # ILP_slicing_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
-    # ILP_2D_constraints_test()
+    ILP_2D_constraints_test()
     # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()
@@ -1702,4 +1705,4 @@ if __name__ == "__main__":
     # ilp_return_first_feasible_test()
     # ILP_timeout_test()
     # ILP_num_threads_test()
-    soft_constraints()
+    # soft_constraints()
