@@ -149,7 +149,7 @@ class IlpSolver(Algorithm):
         return {seg_label: Segment(segment.id, segment.property, *segment) for seg_label, segment in segments.items()}
 
     def solve(self, items: Dict[str, float], segments: Dict[str, Segment], constraints: List[Constraint], N: int,
-              already_recommended_items: List[str] = None, return_first_feasible: bool = False, num_threads: int = 0):
+              already_recommended_items: List[str] = None, return_first_feasible: bool = False, num_threads: int = 0, seed: int = None):
         start = time.time()
 
         if self.verbose:
@@ -157,6 +157,12 @@ class IlpSolver(Algorithm):
 
         model = Model("RecommenderSystem")
         model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+
+        # Set the seed for reproducibility
+        if seed is not None:
+            if self.verbose:
+                print(f"[{self.name}] Setting seed to {seed}.")
+            model.setParam('Seed', seed)
 
         if self.time_limit is not None:
             if self.verbose:

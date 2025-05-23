@@ -219,7 +219,7 @@ def compare_ilp_and_cp():
     # plt.show()
 
     # --- effect of increasing M ---
-    N = 10
+    print("--- Effect of Increasing M ---")
     results_increasing_M = dict()
     for M in [50, 100, 150, 200, 250, 300]:
         print(f"Running test for M={M}")
@@ -232,8 +232,8 @@ def compare_ilp_and_cp():
         results_increasing_M[M] = dict()
         # results_increasing_M[M]['idfs'] = run_test_idfs(f"Test Case N:20, M: {M}", items.copy(),
         #                                                 segments, constraints, N)
-        results_increasing_M[M]['cp'] = run_test_cp_preprocessing(f"Test Case N:20, M: {M}", cp_solver, preprocessor, items, segments, constraints, 20, M, 20, verbose=False, preprocessing_only=False)
-        results_increasing_M[M]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:20, M: {M}", solver, preprocessor, items, segments, constraints, 20, M, [], verbose=False, run_normal=True)
+        results_increasing_M[M]['cp'] = run_test_cp_preprocessing(f"Test Case N:20, M: {M}", cp_solver, preprocessor, items, segments, constraints, 20, M, 20, verbose=True, preprocessing_only=False)
+        results_increasing_M[M]['ilp'] = run_ilp_test_all_approaches(f"Test Case N:20, M: {M}", solver, preprocessor, items, segments, constraints, 20, M, [], verbose=True, run_normal=True)
 
     # plot results
     plt.figure(figsize=(8, 6))
@@ -267,7 +267,7 @@ def compare_ilp_and_cp():
     plt.figure(figsize=(8, 6))
     plt.plot(list(results_increasing_M.keys()),
              [results_increasing_M[M]['ilp']['normal']['time'] for M in results_increasing_M], marker='o',
-             label='ILP Optimal', color='blue')
+             label='ILP Optimal', color='green')
     plt.plot(list(results_increasing_M.keys()),
              [results_increasing_M[M]['cp']['optimal']['time'] for M in results_increasing_M], marker='o',
              label='CP Optimal', color='orange')
@@ -277,6 +277,29 @@ def compare_ilp_and_cp():
 
     plt.xlabel("Number of Candidates (M)")
     plt.ylabel("Time (milliseconds)")
+    plt.legend()
+    plt.tight_layout()
+    plt.grid()
+    # plt.yticks(range(0, int(results_increasing_M[300]['cp']['preprocessing_optimal']["time"] + 50), 50))
+    plt.show()
+
+    # plot scores
+    plt.figure(figsize=(8, 6))
+    plt.plot(list(results_increasing_M.keys()),
+             [results_increasing_M[M]['cp']['preprocessing_optimal']['score'] for M in results_increasing_M], marker='o',
+             label='CP Preprocessing Optimal', color='orange')
+    plt.plot(list(results_increasing_M.keys()),
+             [results_increasing_M[M]['cp']['preprocessing_first_feasible']['score'] for M in results_increasing_M],
+             marker='o', label='CP Preprocessing First Feasible', color='purple')
+    plt.plot(list(results_increasing_M.keys()),
+             [results_increasing_M[M]['ilp']['preprocessing']['score'] for M in results_increasing_M], marker='o',
+             label='ILP Preprocessing  Optimal', color='green', linestyle='--')
+    plt.plot(list(results_increasing_M.keys()),
+             [results_increasing_M[M]['ilp']['preprocessing_first_feasible']['score'] for M in results_increasing_M],
+             marker='o', label='ILP Preprocessing First Feasible', color='blue')
+
+    plt.xlabel("Number of Candidates (M)")
+    plt.ylabel("Solution Score")
     plt.legend()
     plt.tight_layout()
     plt.grid()

@@ -17,6 +17,7 @@ from src.algorithms.Preprocessor import ItemPreprocessor
 from src.segmentation import Segment
 from src.constraints import *
 from src.util import *
+from src.constraint_generator import ConstraintGenerator
 
 
 def run_test(test_name, solver, items, segments, constraints, N, using_soft_constraints=False, already_recommended_items=None,
@@ -1026,6 +1027,135 @@ def ILP_2D_constraints_test_preprocessing():
     print(
         f"Elapsed time for large test without preprocessing: {elapsed_time:.4f} milliseconds, score: {count_2D_score(result, items, N)}")
 
+
+def ILP_2D_constraints_performance_test():
+    print("=============== Testing 2D Constraints Performance ===============")
+    solver = IlpSolver(verbose=False)
+
+    # Test parameters
+    row_widths = [8, 10, 12, 14]  # N values (columns)
+    num_rows_list = [2, 3, 4, 5, 6]  # H values (rows)
+
+    # Generate random items
+    items1 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 400)}
+    items2 = {f'item-{i}': random.uniform(0, 1) for i in range(200, 600)}
+    items3 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 400)}
+    items4 = {f'item-{i}': random.uniform(0, 1) for i in range(200, 600)}
+    items5 = {f'item-{i}': random.uniform(0, 1) for i in range(0, 400)}
+    items6 = {f'item-{i}': random.uniform(0, 1) for i in range(200, 600)}
+
+    item_pools = [items1, items2, items3, items4, items5, items6]
+
+    # Create segments
+    segments = {f"segment-{i}-test-property": Segment(f'segment-{i}', 'test-property', *[f'item-{j}' for j in range(i*10, (i+1)*10)]) for i in range(0, 60)}
+
+    # Results storage
+    results = {
+        "both_constraints": {},
+        "uniqueness_only": {},
+        "row_constraints_only": {}
+    }
+
+    for N in row_widths:
+        for H in num_rows_list:
+            print(f"\nTesting with N={N}, H={H}")
+            test_key = (N, H)
+
+            # Create constraints
+            row_constraints = [[MaxSegmentsConstraint('test-property', 5, 8),
+                                GlobalMaxItemsPerSegmentConstraint('test-property', 3, 5)] for _ in range(H)]
+            uniqueness_constraint = [ItemUniqueness2D(width=5, height=2)]
+
+            # Test 1: Both constraints
+            start_time = time.time()
+            result = solver.solve_2D_constraints(item_pools[:H], segments, row_constraints, uniqueness_constraint, N)
+            elapsed_time = (time.time() - start_time) * 1000
+            results["both_constraints"][test_key] = elapsed_time
+            print(f"Both constraints: {elapsed_time:.2f} ms")
+
+            # Test 2: Only uniqueness constraint
+            empty_constraints = [[] for _ in range(H)]
+            start_time = time.time()
+            result = solver.solve_2D_constraints(item_pools[:H], segments, empty_constraints, uniqueness_constraint, N)
+            elapsed_time = (time.time() - start_time) * 1000
+            results["uniqueness_only"][test_key] = elapsed_time
+            print(f"Uniqueness only: {elapsed_time:.2f} ms")
+
+            # Test 3: Only row constraints
+            start_time = time.time()
+            result = solver.solve_2D_constraints(item_pools[:H], segments, row_constraints, [], N)
+            elapsed_time = (time.time() - start_time) * 1000
+            results["row_constraints_only"][test_key] = elapsed_time
+            print(f"Row constraints only: {elapsed_time:.2f} ms")
+
+    # Plot results
+    plot_2D_constraints_results(results, row_widths, num_rows_list)
+
+    return results
+
+
+def plot_2D_constraints_results(results, row_widths, num_rows_list):
+    """Plot the results of 2D constraints performance tests."""
+    # Plot 1: Effect of N (row width) for each H
+    plt.figure(figsize=(12, 8))
+    for h in num_rows_list:
+        both_times = [results["both_constraints"].get((n, h), 0) for n in row_widths]
+        uniqueness_times = [results["uniqueness_only"].get((n, h), 0) for n in row_widths]
+        row_times = [results["row_constraints_only"].get((n, h), 0) for n in row_widths]
+
+        plt.subplot(1, 3, 1)
+        plt.plot(row_widths, both_times, marker='o', label=f'H={h}')
+        plt.title('Both Constraints')
+        plt.grid(True)
+        plt.xlabel('N (Row Width)')
+        plt.ylabel('Time (ms)')
+
+        plt.subplot(1, 3, 2)
+        plt.plot(row_widths, uniqueness_times, marker='o', label=f'H={h}')
+        plt.title('2D Item Uniqueness Only')
+        plt.grid(True)
+        plt.xlabel('N (Row Width)')
+
+        plt.subplot(1, 3, 3)
+        plt.plot(row_widths, row_times, marker='o', label=f'H={h}')
+        plt.title('Row Constraints Only')
+        plt.grid(True)
+        plt.xlabel('N (Row Width)')
+
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # Plot 2: Effect of H (number of rows) for each N
+    plt.figure(figsize=(12, 8))
+    for n in row_widths:
+        both_times = [results["both_constraints"].get((n, h), 0) for h in num_rows_list]
+        uniqueness_times = [results["uniqueness_only"].get((n, h), 0) for h in num_rows_list]
+        row_times = [results["row_constraints_only"].get((n, h), 0) for h in num_rows_list]
+
+        plt.subplot(1, 3, 1)
+        plt.plot(num_rows_list, both_times, marker='o', label=f'N={n}')
+        plt.title('Both Constraints')
+        plt.grid(True)
+        plt.xlabel('H (Number of Rows)')
+        plt.ylabel('Time (ms)')
+
+        plt.subplot(1, 3, 2)
+        plt.plot(num_rows_list, uniqueness_times, marker='o', label=f'N={n}')
+        plt.title('2D Item Uniqueness Only')
+        plt.grid(True)
+        plt.xlabel('H (Number of Rows)')
+
+        plt.subplot(1, 3, 3)
+        plt.plot(num_rows_list, row_times, marker='o', label=f'N={n}')
+        plt.title('Row Constraints Only')
+        plt.grid(True)
+        plt.xlabel('H (Number of Rows)')
+
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 def check_constraints_and_print_2D(result, items, segments, constraints, constraints2D, N):
     # print solution
     for i in range(len(items)):
@@ -1617,20 +1747,43 @@ def ILP_num_threads_test():
     segments = {f'segment-{i}-test-prop': Segment(f'segment-{i}', 'test-prop', *list(items.keys())[i*20:(i+1)*20]) for i in range(20)}
     N = 20
     constraints = [
-        GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 10),
-        MinSegmentsConstraint('test-prop', 2, 4)
+        GlobalMaxItemsPerSegmentConstraint('test-prop', 2, 13),
+        MinSegmentsConstraint('test-prop', 3, 9),
+        MaxSegmentsConstraint('test-prop', 8, 16)
     ]
     solver = IlpSolver(verbose=True)
     results = dict()
     for num_threads in [1, 2, 4, 8, 12, 16, 20]:
         print(f"Running test with {num_threads} threads")
-        start = time.time()
-        recomms = solver.solve(items, segments, constraints, N, num_threads=num_threads)
-        time_elapsed = (time.time() - start) * 1000
-        results[num_threads] = time_elapsed
-        score = sum([items[item_id] for item_id in recomms.values()])
-        print(f"Score: {score}")
-        print(f"Time elapsed: {time_elapsed:.4f} ms")
+        total_time_elapsed = 0
+        total_score = 0
+        num_runs = 10
+        for _ in range(num_runs):
+            start = time.time()
+            recomms = solver.solve(items, segments, constraints, N, num_threads=num_threads, seed=1)
+            time_elapsed = (time.time() - start) * 1000
+            total_time_elapsed += time_elapsed
+            if recomms:
+                total_score += sum([items[item_id] for item_id in recomms.values()])
+            else:
+                pass
+
+        avg_time_elapsed = total_time_elapsed / num_runs
+        avg_score = total_score / num_runs
+        results[num_threads] = avg_time_elapsed
+        print(f"Avg Score: {avg_score}")
+        print(f"Avg Time elapsed: {avg_time_elapsed:.4f} ms")
+
+    # plot results
+    plt.figure(figsize=(8, 6))
+    plt.plot(list(results.keys()), list(results.values()), marker='o')
+    plt.title("Time Efficiency of ILP Solver for Increasing Number of Threads")
+    plt.xlabel("Number of Threads")
+    plt.ylabel("Time (milliseconds)")
+    plt.xticks(range(0, max(results.keys()) + 2, 2))
+    plt.tight_layout()
+    plt.grid()
+    plt.show()
 
 # test prioritizing constraints with higher weights
 def soft_constraints():
@@ -1694,7 +1847,8 @@ if __name__ == "__main__":
     # ILP_slicing_test()
     # ILP_partitioning_time_efficiency()
     # plot_results_ILP_partitioning('results_ILP_partitioning_time_efficiency.txt')
-    ILP_2D_constraints_test()
+    # ILP_2D_constraints_test()
+    ILP_2D_constraints_performance_test()
     # ILP_solve_for_overlapping_segments()
     # compare_ILP_approaches()
     # basic_ILP_time_efficiency_test()

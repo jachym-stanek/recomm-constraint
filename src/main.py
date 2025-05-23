@@ -181,11 +181,15 @@ def evaluate_solvers_on_movielens():
     train_dataset = data_splitter.get_train_data()
     test_dataset = data_splitter.get_test_data()
     experiment_runner = ExperimentRunner(settings, RESULTS_FILE, train_dataset, test_dataset)
-    ILP_time_limit = 5 # seconds
-    solvers = {'ilp': IlpSolver(verbose=False, time_limit=ILP_time_limit), 'ilp-preprocessing': IlpSolver(verbose=False, time_limit=ILP_time_limit),
-               'ilp-slicing': IlpSolver(verbose=False, time_limit=ILP_time_limit)} # not evaluating CP solver because it cannot handle soft constraints
-    num_recomms_values = [10, 15, 20, 30, 50]
-    num_candidates_values = [20, 30, 50, 100, 200, 300]
+    time_limit = 10 # seconds
+    solvers = {
+        'ilp': IlpSolver(verbose=False, time_limit=time_limit),
+        'ilp-preprocessing': IlpSolver(verbose=False, time_limit=time_limit),
+        'ilp-slicing': IlpSolver(verbose=False, time_limit=time_limit),
+        'state_space': StateSpaceSolver(verbose=False, time_limit=time_limit),
+    } # not evaluating CP solver because it cannot handle soft constraints
+    num_recomms_values = [10]
+    num_candidates_values = [20, 30, 50, 70, 100, 150]
     item_properties = ['genres', 'title', 'year']
     constraint_generator = ConstraintGenerator()
     random_5_constraints = constraint_generator.generate_random_constraints(num_constraints=5, num_recommendations=10,
@@ -209,9 +213,10 @@ def evaluate_solvers_on_movielens():
         ]
     ]
 
-    slice_sizes = [2, 5, 7, 8, 10, 15, 20]
+    slice_sizes = [1,2,3, 5, 7, 8, 10, 15, 20]
+    params = {'nearest_neighbors': 20} # more nearest neighbors to have more candidates
     experiment_runner.run_experiments_on_solver(solvers, num_recomms_values, num_candidates_values, constraint_lists,
-                                                slice_sizes, item_properties)
+                                                slice_sizes, item_properties, model_params=params)
     print(f"[ExperimentRunner] Evaluation completed in {time.time() - start_time:.2f} seconds.")
 
 def measure_changes_with_diversity_constraints():
@@ -268,6 +273,6 @@ if __name__ == "__main__":
     print(f"Using file '{RESULTS_FILE}' to save results.")
     # main()
     # measure_changes_with_diversity_constraints()
-    evaluate_solvers_on_id1()
-    # evaluate_solvers_on_movielens()
+    # evaluate_solvers_on_id1()
+    evaluate_solvers_on_movielens()
     # evaluate_solvers_on_id2()

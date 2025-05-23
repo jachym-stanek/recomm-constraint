@@ -237,6 +237,7 @@ def plot_time_vs_satisfaction(
     ax: Optional[plt.Axes] = None,
     show: bool = True,
     savepath: Optional[str | Path] = None,
+    avoid_clutter: bool = True,
 ) -> list[plt.Axes]:
     """Plot constraint satisfaction vs time for varying parameter values.
 
@@ -315,9 +316,11 @@ def plot_time_vs_satisfaction(
 
         # Add only a few labeled points per solver to avoid clutter
         param_subset = param_values
-        if len(param_subset) > 5:  # If more than 5 points, select a subset
+        if len(param_subset) > 5 and avoid_clutter:  # If more than 5 points, select a subset
             indices = np.linspace(0, len(param_subset) - 1, 5).astype(int)
             param_subset = [param_subset[i] for i in indices]
+        else:
+            param_subset = param_values
 
         for param in param_subset:
             row = subset[subset[varying_col] == param]
@@ -360,7 +363,7 @@ if __name__ == "__main__":
 
     # replace values M=100 with M=60
     # this is done because for M = 100 tbe average number of candidates was 60
-    df.loc[df["M"] == 100, "M"] = 60
+    # df.loc[df["M"] == 100, "M"] = 60
 
     # plot_time_vs_satisfaction(df,
     #                           fixed_col="N", fixed_val=10, varying_col="M", exclude_solvers=["ilp-slicing-s=2", "ilp-slicing-s=3", "ilp-slicing-s=5"],)
@@ -420,19 +423,19 @@ if __name__ == "__main__":
                               fixed_col="M", fixed_val=60, varying_col="N",
                               satisfaction_stat="mean", time_stat="p90")
 
-    # plot_fixed_param(df,
-    #                  fixed_col="M", fixed_val=60, varying_col="N",
-    #                  metric="constraint_satisfaction", stat="mean",
-    #                  constraints_mode="all", exclude_solvers=["ilp-slicing-s=15", "ilp-slicing-s=7", "ilp-slicing-s=20"])
-    # plot_fixed_param(df,
-    #                  fixed_col="M", fixed_val=60, varying_col="N",
-    #                  metric="time_ms", stat="mean",
-    #                  constraints_mode="all", exclude_solvers=["ilp-slicing-s=2", "ilp-slicing-s=3"])
-    # plot_fixed_param(df,
-    #                  fixed_col="M", fixed_val=60, varying_col="N",
-    #                  metric="constraint_satisfaction", stat="p90",
-    #                  constraints_mode="all", exclude_solvers=["ilp-slicing-s=15", "ilp-slicing-s=7"])
-    # plot_fixed_param(df,
-    #                  fixed_col="M", fixed_val=60, varying_col="N",
-    #                  metric="time_ms", stat="p90",
-    #                  constraints_mode="all", exclude_solvers=["ilp-slicing-s=3", "ilp-slicing-s=7"])
+    df = load_csv("results_movielens_N10_solvers.csv")
+
+    # Quick exploration
+    print(df.head())
+    print("Unique solvers:", df["solver"].unique())
+    print("N range:", sorted(df["N"].unique()))
+    print("M range:", sorted(df["M"].unique()))
+    print("Total distinct constraint-lists:", df["constraints_tuple"].nunique())
+
+    plot_time_vs_satisfaction(df,
+                              fixed_col="N", fixed_val=10, varying_col="M",
+                              exclude_solvers=["ilp-slicing-s=1", "ilp-slicing-s=3", "ilp-slicing-s=5", "ilp-slicing-s=7"],
+                              avoid_clutter=False
+                              )
+
+
